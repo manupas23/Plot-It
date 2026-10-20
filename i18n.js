@@ -389,13 +389,16 @@ const I18N = {
     rc_above: ({ n }) => (n === 1 ? 'Fila nueva encima' : `${n} filas nuevas encima`),
     rc_below: ({ n }) => (n === 1 ? 'Fila nueva debajo' : `${n} filas nuevas debajo`),
     rc_del: ({ n }) => (n === 1 ? 'Borrar la fila' : `Borrar ${n} filas`),
-    mv_split: 'Dos pestañas a la vez',
+    mv_split: 'Dividir en dos ventanas',
     mv_swap: 'Intercambiar los lados',
-    split_t: 'Ver dos pestañas a la vez (pantalla dividida)',
-    split_close: 'Volver a una sola pestaña',
+    split_t: 'Dividir la pantalla en dos ventanas, cada una con sus pestañas',
+    split_close: 'Volver a una sola ventana',
+    split_drop: 'Suelta para dividir la pantalla',
+    split_move: 'Suelta para moverla a esta ventana',
+    tab_move: 'Mover a la otra ventana',
     split_hint: 'Clic para trabajar aquí',
     split_drag_t: 'Arrastra para repartir el espacio; doble clic, mitad y mitad',
-    split_need: 'Abre otra tabla o gráfica para ver dos a la vez.',
+    split_need: 'Abre otra tabla o gráfica para dividir la pantalla.',
     tab_beside: 'Abrir al lado',
     tab_rename: 'Cambiar el nombre',
     tab_close: 'Cerrar',
@@ -494,8 +497,8 @@ const I18N = {
     </ul>
     <h3>Pestañas</h3>
     <ul>
-    <li>Doble clic: cambiar el nombre; clic con la rueda: cerrar; clic derecho: abrir al lado, cambiar el nombre o cerrar.</li>
-    <li>Dos a la vez (tabla y gráfica, dos gráficas…): botón de la pantalla dividida junto a <b>+ Gráfica</b> o menú <b>Ver</b>. Se trabaja en la que tiene la raya azul; un clic en la otra la activa. La barra del medio reparte el espacio (doble clic: mitad y mitad).</li>
+    <li>Doble clic: cambiar el nombre; clic con la rueda: cerrar; arrastrar: cambiar el orden. Clic derecho: abrir al lado o pasar a la otra ventana, cambiar el nombre o cerrar.</li>
+    <li>Dos ventanas, cada una con sus pestañas: arrastra una pestaña más allá de los dos tercios de la anchura y suéltala en el recuadro punteado, o usa el botón junto a <b>+ Gráfica</b> o el menú <b>Ver</b>. Las pestañas pasan de una ventana a otra arrastrándolas; si una se queda vacía, se vuelve a una sola. Se trabaja en la que tiene la raya azul y un clic en la otra le pasa el foco. La barra del medio reparte el espacio (doble clic: mitad y mitad).</li>
     </ul>
     <h3>Ajustes</h3>
     <ul>
@@ -895,13 +898,16 @@ const I18N = {
     rc_above: ({ n }) => (n === 1 ? 'New row above' : `${n} new rows above`),
     rc_below: ({ n }) => (n === 1 ? 'New row below' : `${n} new rows below`),
     rc_del: ({ n }) => (n === 1 ? 'Delete row' : `Delete ${n} rows`),
-    mv_split: 'Two tabs side by side',
+    mv_split: 'Split into two windows',
     mv_swap: 'Swap sides',
-    split_t: 'Show two tabs side by side (split screen)',
-    split_close: 'Back to a single tab',
+    split_t: 'Split the screen into two windows, each with its own tabs',
+    split_close: 'Back to a single window',
+    split_drop: 'Drop to split the screen',
+    split_move: 'Drop to move it to this window',
+    tab_move: 'Move to the other window',
     split_hint: 'Click to work here',
     split_drag_t: 'Drag to share the space; double-click for half and half',
-    split_need: 'Open another table or graph to see two at once.',
+    split_need: 'Open another table or graph to split the screen.',
     tab_beside: 'Open beside',
     tab_rename: 'Rename',
     tab_close: 'Close',
@@ -999,8 +1005,8 @@ const I18N = {
     </ul>
     <h3>Tabs</h3>
     <ul>
-    <li>Double-click: rename; middle-click: close; right-click: open beside, rename or close.</li>
-    <li>Two at once (a table and a graph, two graphs…): split-screen button next to <b>+ Graph</b> or the <b>View</b> menu. You work in the one with the blue line; a click on the other one activates it. The bar in the middle shares the space (double-click: half and half).</li>
+    <li>Double-click: rename; middle-click: close; drag: reorder. Right-click: open beside or move to the other window, rename or close.</li>
+    <li>Two windows, each with its own tabs: drag a tab past two thirds of the width and drop it on the dashed box, or use the button next to <b>+ Graph</b> or the <b>View</b> menu. Tabs move between windows by dragging; when one window is left empty, you are back to one. You work in the one with the blue line, and a click on the other one gives it the focus. The bar in the middle shares the space (double-click: half and half).</li>
     </ul>
     <h3>Fits</h3>
     <ul>

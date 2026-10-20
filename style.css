@@ -105,10 +105,11 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .pane { flex: 1; min-height: 0; position: relative; }
 /* Pantalla dividida: dos huecos con una barra en medio; el que tiene el foco lleva el borde azul. */
 .panes { flex: 1; min-height: 0; display: flex; }
-.slot { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.slot { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.panes.anim .slot { transition: flex-grow .34s cubic-bezier(.2, .8, .2, 1); }
 .panes.split .slot { border-top: 2px solid transparent; }
 .panes.split .slot.focus { border-top-color: var(--accent); }
-.splitter { flex: none; width: 6px; cursor: col-resize; background: var(--border); outline: none; transition: background-color .15s; }
+.splitter { order: 1; flex: none; width: 6px; cursor: col-resize; background: var(--border); outline: none; transition: background-color .15s; }
 .splitter:hover, .splitter:focus-visible, .splitter.drag { background: var(--accent); }
 .slot.side .toolbar { gap: 8px; cursor: pointer; }
 .side-hint { color: var(--text-muted); font-size: 12.5px; white-space: nowrap; }
@@ -120,8 +121,26 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 #gview2 { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
 #gview2[hidden] { display: none; }
 #btnSplit svg { width: 15px; height: 15px; display: block; }
+#btnSplitClose { padding: 4px 9px; font-size: 14px; line-height: 20px; }
 #btnSplit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.tab.shown { border-color: var(--border); border-style: dashed; color: var(--text-primary); }
+/* Pestaña activa de la ventana sin foco: marcada, pero más apagada. */
+.slot.side .tab.active { color: var(--text-secondary); }
+.slot.side .tab.active .ti { color: var(--text-muted); }
+/* Arrastrar pestañas: la original queda tenue, una copia sigue al ratón y una raya marca el hueco. */
+.tab.dragging { opacity: .35; }
+.tab.ghost { position: fixed; top: 0; left: 0; z-index: 80; pointer-events: none; background: var(--surface-1); border: 1px solid var(--accent); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.tabmark { position: fixed; width: 2px; background: var(--accent); border-radius: 1px; z-index: 79; pointer-events: none; }
+.tabmark[hidden] { display: none; }
+body.tab-moving, body.tab-moving * { cursor: grabbing !important; user-select: none; }
+/* Recuadro punteado: dónde quedará la pestaña si se suelta (ventana nueva u otra ventana). */
+.split-preview {
+  position: fixed; z-index: 70; pointer-events: none; display: grid; place-items: center;
+  border: 2px dashed var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent); font-weight: 600; opacity: 0; transform: scale(.96); transition: opacity .18s ease, transform .18s ease;
+}
+.split-preview.show { opacity: 1; transform: none; }
+.split-preview span { background: var(--surface-1); padding: 6px 12px; border-radius: 7px; border: 1px solid var(--accent); }
+@media (prefers-reduced-motion: reduce) { .split-preview, .panes.anim .slot { transition: none; } }
 #sidePane.graph { background: var(--stage); overflow: hidden; }
 .menu-list button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: 16px; color: var(--accent); }
 @media (max-width: 1100px) {

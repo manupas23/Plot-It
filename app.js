@@ -74,22 +74,24 @@ $('btnNewGraph').addEventListener('click', () => {
   renderAll();
 });
 
-$('tabs').addEventListener('click', (e) => {
-  const x = e.target.closest('[data-close]');
-  if (x) { closeWin(+x.dataset.close); return; }
-  const tab = e.target.closest('.tab');
-  if (!tab || e.target.tagName === 'INPUT') return;
-  activate(+tab.dataset.id);
-  if (activeTable()) gridWrap.focus({ preventScroll: true });
-});
-$('tabs').addEventListener('auxclick', (e) => {
-  const tab = e.target.closest('.tab');
-  if (tab && e.button === 1) { e.preventDefault(); closeWin(+tab.dataset.id); }
-});
-$('tabs').addEventListener('dblclick', (e) => {
-  const tab = e.target.closest('.tab');
-  if (tab && !e.target.closest('[data-close]') && !tab.querySelector('input')) renameTab(tab);
-});
+for (const bar of [$('tabs'), $('tabs2')]) {
+  bar.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-close]');
+    if (x) { closeWin(+x.dataset.close); return; }
+    const tab = e.target.closest('.tab');
+    if (!tab || e.target.tagName === 'INPUT') return;
+    activate(+tab.dataset.id);
+    if (activeTable()) gridWrap.focus({ preventScroll: true });
+  });
+  bar.addEventListener('auxclick', (e) => {
+    const tab = e.target.closest('.tab');
+    if (tab && e.button === 1) { e.preventDefault(); closeWin(+tab.dataset.id); }
+  });
+  bar.addEventListener('dblclick', (e) => {
+    const tab = e.target.closest('.tab');
+    if (tab && !e.target.closest('[data-close]') && !tab.querySelector('input')) renameTab(tab);
+  });
+}
 
 $('btnAutoscale').addEventListener('click', autoscale);
 $('btnPng').addEventListener('click', () => { const g = activeGraph(); if (g) exportPng(g); });

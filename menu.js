@@ -127,7 +127,7 @@ ctxMenu.addEventListener('click', (e) => {
   else if (/^(col|row)/.test(item.dataset.ctx)) gridCtxCommand(item.dataset.ctx, +item.dataset.c);
   else if (item.dataset.ctx === 'beside') openBeside(+item.dataset.id);
   else if (item.dataset.ctx === 'unsplit') splitClose();
-  else if (item.dataset.ctx === 'rename') { const el = $('tabs').querySelector(`.tab[data-id="${item.dataset.id}"]`); if (el) renameTab(el); }
+  else if (item.dataset.ctx === 'rename') { const el = document.querySelector(`.tablist .tab[data-id="${item.dataset.id}"]`); if (el) renameTab(el); }
   else if (item.dataset.ctx === 'closewin') closeWin(+item.dataset.id);
 });
 ctxMenu.addEventListener('keydown', (e) => {

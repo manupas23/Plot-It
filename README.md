@@ -23,7 +23,7 @@ Open `index.html` in Chrome, Edge or Firefox.
 
 In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values. A double-click on the axes or the margins opens the graph format. Right-click the graph for the *Analysis* and *Graph* menus, *Open image in new tab* and *Save image as…* (PNG or SVG, in the folder you choose); right-clicking a point first selects its curve.
 
-To see two tabs at once (a table and its graph, or two graphs), press the split-screen button next to *+ Graph*, use *View → Two tabs side by side*, or right-click a tab and choose *Open beside*. You work in the half with the blue line; the other one is redrawn on every change, and a click on it makes it the active one (in a table, the clicked cell is selected). Drag the bar in the middle to share the space (double-click for half and half, or the arrow keys); *View → Swap sides* exchanges them. On narrow screens the two halves are stacked.
+Tabs are reordered by dragging them. The screen can be split into two windows, each with its own tabs, as in VS Code: drag a tab past two thirds of the width (a dashed box shows where the new window will go) and drop it, or press the split button next to *+ Graph*, use *View → Split into two windows*, or right-click a tab and choose *Open beside*. Drag tabs from one window to the other (onto its tab bar or its content) to move them; when a window is left without tabs, the screen goes back to one. New tables and graphs open in the window with the focus. You work in the window with the blue line; the other one is redrawn on every change, and a click on it gives it the focus (in a table, the clicked cell is selected). Drag the bar in the middle to share the space (double-click for half and half, or the arrow keys); *View → Swap sides* exchanges them. On narrow screens the two windows are stacked.
 
 ### Formulas
 
@@ -204,4 +204,4 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `?` | Help |
 
-Double-click a tab to rename it; middle-click to close it; right-click it to open it beside the current one, rename it or close it.
+Double-click a tab to rename it; middle-click to close it; drag it to reorder it or to move it to the other window; right-click it to open it beside, move it to the other window, rename it or close it.

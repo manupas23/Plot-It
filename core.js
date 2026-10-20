@@ -17,7 +17,7 @@ const UI = {
   curve: new Map(), // id de gráfica → id de la curva seleccionada
   fit: new Map(),   // id de gráfica → estado del panel de ajuste
   plotStyle: 'scatter',
-  split: null,      // pantalla dividida: { left, right (ids), focus: 'left' | 'right', ratio }
+  split: null,      // pantalla dividida: { right: [ids de la derecha], act: [activa izq, dcha], focus: 0 | 1, ratio, known }
 };
 
 /* ---------- utilidades ---------- */
@@ -503,11 +503,17 @@ function renderLog() {
 const ICON_TABLE = '<svg class="ti" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 6h13M6 6v7.5M10.5 6v7.5" stroke="currentColor" stroke-width="1.2"/></svg>';
 const ICON_GRAPH = '<svg class="ti" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.5V14h12.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M4 12Q8 11 13 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 
+const tabHtml = (w, active) => `<div class="tab${active ? ' active' : ''}" role="tab" data-id="${w.id}" title="${esc(t('tab_t'))}">${w.type === 'table' ? ICON_TABLE : ICON_GRAPH}<span class="tn">${esc(w.name)}</span><button class="tx" data-close="${w.id}" title="${esc(t('close_t'))}">×</button></div>`;
+// Con la pantalla dividida, cada ventana tiene sus pestañas: las de la que tiene el foco van en
+// #tabs y las de la otra en #tabs2.
 function renderTabs() {
-  const side = sideId();
-  $('tabs').innerHTML = P.wins.map((w) => `<div class="tab${w.id === P.active ? ' active' : w.id === side ? ' shown' : ''}" role="tab" data-id="${w.id}" title="${esc(t('tab_t'))}">${w.type === 'table' ? ICON_TABLE : ICON_GRAPH}<span class="tn">${esc(w.name)}</span><button class="tx" data-close="${w.id}" title="${esc(t('close_t'))}">×</button></div>`).join('');
-  const cur = $('tabs').querySelector('.tab.active');
-  if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const S = UI.split, fg = S ? S.focus : 0;
+  $('tabs').innerHTML = groupWins(fg).map((w) => tabHtml(w, w.id === P.active)).join('');
+  if (S) $('tabs2').innerHTML = groupWins(1 - fg).map((w) => tabHtml(w, w.id === S.act[1 - fg])).join('');
+  for (const el of [$('tabs'), $('tabs2')]) {
+    const cur = el.querySelector('.tab.active');
+    if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
 }
 
 function activate(id) {
@@ -536,7 +542,7 @@ async function closeWin(id) {
   P.wins.splice(i, 1);
   pruneCurves();
   if (!P.wins.length) addTable();
-  if (P.active === id) P.active = P.wins[Math.min(i, P.wins.length - 1)].id;
+  if (P.active === id) P.active = nextAfterClose(id, i);
   hist.commit();
   renderAll();
 }

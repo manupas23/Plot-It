@@ -63,15 +63,14 @@
 
 <main class="layout">
   <section class="work" id="work">
-    <nav class="tabs">
-      <div class="tablist" id="tabs" role="tablist"></div>
-      <button class="btn small" id="btnNewTable" data-i18n="new_table">+ Table</button>
-      <button class="btn small" id="btnNewGraph" data-i18n="new_graph">+ Graph</button>
-      <button class="btn small icon" id="btnSplit" aria-pressed="false" data-i18n-title="split_t"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.4"/></svg></button>
-    </nav>
-
     <div class="panes" id="panes">
       <div class="slot" id="slotMain">
+        <nav class="tabs">
+          <div class="tablist" id="tabs" role="tablist"></div>
+          <button class="btn small" id="btnNewTable" data-i18n="new_table">+ Table</button>
+          <button class="btn small" id="btnNewGraph" data-i18n="new_graph">+ Graph</button>
+          <button class="btn small icon" id="btnSplit" aria-pressed="false" data-i18n-title="split_t"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.4"/></svg></button>
+        </nav>
         <div class="toolbar" id="tableBar">
           <span class="readout" id="cellReadout"></span>
           <span class="spacer"></span>
@@ -103,11 +102,13 @@
       </div>
       <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="0" data-i18n-title="split_drag_t" hidden></div>
       <div class="slot side" id="slotSide" hidden>
+        <nav class="tabs">
+          <div class="tablist" id="tabs2" role="tablist"></div>
+          <button class="btn small icon" id="btnSplitClose" data-i18n-title="split_close">×</button>
+        </nav>
         <div class="toolbar">
-          <span class="side-name" id="sideName"></span>
           <span class="spacer"></span>
           <span class="side-hint" data-i18n="split_hint">Click to work here</span>
-          <button class="btn small icon" id="btnSplitClose" data-i18n-title="split_close">×</button>
         </div>
         <div class="pane" id="sidePane">
           <div class="gridwrap" id="gridWrap2"><table class="grid" id="grid2"><colgroup></colgroup><thead></thead><tbody></tbody></table></div>
@@ -309,6 +310,7 @@
 </main>
 
 <div class="menu-list ctx" id="ctxMenu" role="menu" hidden></div>
+<div class="split-preview" id="splitPreview" aria-hidden="true"><span></span></div>
 
 <dialog id="help">
   <h2 data-i18n="help_title">How to use it</h2>

@@ -1,32 +1,50 @@
 'use strict';
-// split.js: pantalla dividida, dos pestañas a la vez. La que tiene el foco es la normal (con su
-// barra, sus paneles y el ratón); la otra se dibuja aquí solo para verla, y un clic en ella la
-// convierte en la activa sin que nada cambie de sitio.
+// split.js: pantalla dividida al estilo de VS Code. Hay una o dos ventanas, cada una con sus
+// pestañas, y cada pestaña está en una sola. La ventana con el foco es la normal (con su barra,
+// sus paneles y el ratón); la otra se dibuja aquí solo para verla, y un clic en ella le pasa el
+// foco. Las pestañas se ordenan y se cambian de ventana arrastrándolas; llevar una más allá de
+// los dos tercios de la anchura abre la segunda ventana.
 
 const panes = $('panes'), slotMain = $('slotMain'), slotSide = $('slotSide'), splitter = $('splitter');
 const sidePane = $('sidePane'), gview2 = $('gview2'), gv2ctx = gview2.getContext('2d');
 const grid2 = $('grid2');
 const sideGrid = { wrap: $('gridWrap2'), table: grid2, head: grid2.tHead, body: grid2.tBodies[0], cols: grid2.querySelector('colgroup') };
 let splitRatio = 0.5;   // reparto del último uso (parte de la izquierda o de arriba)
-let sideShown = null;   // id dibujado al lado, para recuperar el desplazamiento de su tabla
+let sideShown = null;   // id dibujado en la otra ventana, para recuperar el desplazamiento de su tabla
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const narrowScreen = () => matchMedia('(max-width: 1100px)').matches; // las ventanas van una encima de otra
 
-// Id de la ventana que se ve al lado (la que no tiene el foco), o null.
+// Ventana de cada pestaña: 0 (izquierda o única) o 1 (derecha).
+const groupOf = (id) => (UI.split && UI.split.right.includes(id) ? 1 : 0);
+const groupWins = (g) => P.wins.filter((w) => groupOf(w.id) === g);
+// Id de la pestaña que se ve en la ventana sin foco, o null.
 function sideId() {
   const S = UI.split;
-  return S ? (S.focus === 'left' ? S.right : S.left) : null;
+  return S ? S.act[1 - S.focus] : null;
 }
 
-// Ajusta la división a la pestaña activa y coloca los dos huecos. Si se activa la de al lado, el
-// foco pasa a ella; si se activa otra, ocupa el sitio de la que tenía el foco.
-function splitLayout() {
-  let S = UI.split;
-  if (S) {
-    if (P.active === S.left) S.focus = 'left';
-    else if (P.active === S.right) S.focus = 'right';
-    else S[S.focus] = P.active;
-    if (!win(S.left) || !win(S.right) || S.left === S.right) S = UI.split = null;
+// Pone la división de acuerdo con el proyecto: las pestañas nuevas van a la ventana con el foco,
+// el foco pasa a la ventana de la pestaña activa y, si una ventana se queda vacía, se vuelve a una.
+function splitSync() {
+  const S = UI.split;
+  if (!S) return;
+  const ids = new Set(P.wins.map((w) => w.id));
+  for (const id of ids) if (!S.known.has(id) && S.focus === 1) S.right.push(id);
+  S.known = ids;
+  S.right = S.right.filter((id) => ids.has(id));
+  S.focus = groupOf(P.active);
+  S.act[S.focus] = P.active;
+  for (const g of [0, 1]) {
+    const ws = groupWins(g);
+    if (!ws.length) { UI.split = null; return; }
+    if (!ws.some((w) => w.id === S.act[g])) S.act[g] = ws[0].id;
   }
-  const on = !!S;
+}
+// Coloca las dos ventanas: la que tiene el foco usa los elementos normales (#slotMain) y queda a
+// su lado; la otra va en #slotSide.
+function splitLayout() {
+  splitSync();
+  const S = UI.split, on = !!S;
   panes.classList.toggle('split', on);
   splitter.hidden = slotSide.hidden = !on;
   slotMain.classList.toggle('focus', on);
@@ -36,14 +54,14 @@ function splitLayout() {
     sideShown = null;
     return;
   }
-  const mainFirst = S.focus === 'left', f = mainFirst ? S.ratio : 1 - S.ratio;
+  const mainFirst = S.focus === 0, f = mainFirst ? S.ratio : 1 - S.ratio;
   slotMain.style.order = mainFirst ? 0 : 2;
   slotSide.style.order = mainFirst ? 2 : 0;
   slotMain.style.flexGrow = f;
   slotSide.style.flexGrow = 1 - f;
 }
 
-// La vista de al lado: se dibuja en el siguiente fotograma, una vez por muchos cambios seguidos.
+// La otra ventana: se dibuja en el siguiente fotograma, una vez por muchos cambios seguidos.
 let sideQueued = false;
 function renderSide() {
   if (sideQueued) return;
@@ -55,7 +73,6 @@ function renderSideNow() {
   const id = sideId(), w = id != null && win(id);
   if (!w) { sideShown = null; return; }
   const isT = w.type === 'table';
-  $('sideName').innerHTML = (isT ? ICON_TABLE : ICON_GRAPH) + `<span>${esc(w.name)}</span>`;
   sideGrid.wrap.hidden = !isT;
   gview2.hidden = isT;
   sidePane.classList.toggle('graph', !isT);
@@ -73,38 +90,100 @@ function renderSideNow() {
   sideShown = id;
 }
 
-function splitOpen(left, right) {
+/* ---------- abrir, cerrar y mover ---------- */
+
+// Abre la segunda ventana con la pestaña id; en la primera queda la activa o su vecina.
+function splitStart(id, focusRight) {
+  const i = P.wins.findIndex((w) => w.id === id);
+  if (i < 0) return false;
+  if (P.wins.length < 2) { toast(t('split_need'), 4000); return false; }
   commitEdit(false);
-  UI.split = { left, right, focus: left === P.active ? 'left' : 'right', ratio: splitRatio };
-  renderAll();
+  const left = P.active !== id ? P.active : (P.wins[i + 1] || P.wins[i - 1]).id;
+  UI.split = { right: [id], act: [left, id], focus: focusRight ? 1 : 0, ratio: splitRatio, known: new Set(P.wins.map((w) => w.id)) };
+  P.active = focusRight ? id : left;
+  return true;
+}
+// La ventana nueva entra desde la derecha (o desde abajo) hasta su sitio.
+let splitAnimTimer = 0;
+function animateSplitOpen() {
+  const S = UI.split;
+  if (!S || reducedMotion()) return;
+  const second = S.focus === 1 ? slotMain : slotSide, first = second === slotMain ? slotSide : slotMain;
+  const g1 = first.style.flexGrow, g2 = second.style.flexGrow;
+  panes.classList.remove('anim');
+  first.style.flexGrow = 1;
+  second.style.flexGrow = 0;
+  void panes.offsetWidth;
+  panes.classList.add('anim');
+  first.style.flexGrow = g1;
+  second.style.flexGrow = g2;
+  clearTimeout(splitAnimTimer);
+  splitAnimTimer = setTimeout(() => panes.classList.remove('anim'), 400);
 }
 function splitClose() {
   if (!UI.split) return;
   UI.split = null;
   renderAll();
 }
+// Botón y menú Ver: la pestaña que mejor acompaña a la activa pasa a una ventana nueva.
 function splitToggle() {
   if (UI.split) { splitClose(); return; }
   const other = splitPartner(P.active);
   if (other == null) { toast(t('split_need'), 4000); return; }
-  splitOpen(P.active, other);
+  if (!splitStart(other, false)) return;
+  renderAll();
+  animateSplitOpen();
 }
-// Cada ventana cambia de lado y conserva su anchura.
+// Las ventanas cambian de lado; cada una conserva su anchura.
 function splitSwap() {
   const S = UI.split;
   if (!S) return;
-  [S.left, S.right] = [S.right, S.left];
-  S.focus = S.focus === 'left' ? 'right' : 'left';
+  S.right = P.wins.filter((w) => !S.right.includes(w.id)).map((w) => w.id);
+  S.act = [S.act[1], S.act[0]];
   S.ratio = splitRatio = 1 - S.ratio;
   renderAll();
 }
-// Pestaña id al lado de la activa (o en lugar de la que ya estaba al lado).
-function openBeside(id) {
-  if (!win(id) || id === P.active) return;
+// Mueve la pestaña id a la ventana g, delante de la pestaña beforeId (o al final), y la activa.
+// Con g = 1 y una sola ventana, abre la segunda.
+function moveTab(id, g, beforeId = null) {
+  const w = win(id);
+  if (!w) return false;
+  commitEdit(false);
+  let opened = false;
   const S = UI.split;
-  if (!S) { splitOpen(P.active, id); return; }
-  S[S.focus === 'left' ? 'right' : 'left'] = id;
+  if (g === 1 && !S) {
+    if (!splitStart(id, true)) return false;
+    opened = true;
+  } else if (S && groupOf(id) !== g) {
+    const from = groupOf(id), ws = groupWins(from), k = ws.indexOf(w);
+    if (S.act[from] === id) { const nb = ws[k + 1] || ws[k - 1]; S.act[from] = nb ? nb.id : null; }
+    if (g === 1) S.right.push(id);
+    else S.right = S.right.filter((x) => x !== id);
+  }
+  P.wins.splice(P.wins.indexOf(w), 1);
+  let j = beforeId != null ? P.wins.findIndex((o) => o.id === beforeId) : -1;
+  if (j < 0) {
+    const ws = groupWins(groupOf(id));
+    j = ws.length ? P.wins.indexOf(ws[ws.length - 1]) + 1 : P.wins.length;
+  }
+  P.wins.splice(j, 0, w);
+  P.active = id;
+  hist.commit();
   renderAll();
+  if (opened) animateSplitOpen();
+  return true;
+}
+// Menú de la pestaña: abrirla al lado o pasarla a la otra ventana.
+function openBeside(id) {
+  moveTab(id, UI.split ? 1 - groupOf(id) : 1);
+}
+// Al cerrar la pestaña activa, se pasa a su vecina de la misma ventana, si queda alguna.
+function nextAfterClose(id, i) {
+  if (UI.split) {
+    const g = groupOf(id), ws = P.wins.filter((w) => groupOf(w.id) === g);
+    if (ws.length) return (ws.find((w) => P.wins.indexOf(w) >= i) || ws[ws.length - 1]).id;
+  }
+  return P.wins[Math.min(i, P.wins.length - 1)].id;
 }
 
 // Compañera para dividir: de una gráfica, la tabla de su primera curva de datos; de una tabla, la
@@ -123,9 +202,9 @@ function splitPartner(id) {
   return (P.wins[i + 1] || P.wins[i - 1]).id;
 }
 
-/* ---------- la vista de al lado ---------- */
+/* ---------- la ventana sin foco ---------- */
 
-// Un clic la activa. En una tabla, además, selecciona la celda, la columna o la fila pulsada.
+// Un clic le pasa el foco. En una tabla, además, selecciona la celda, la columna o la fila pulsada.
 function sideActivate(e) {
   const id = sideId(), w = id != null && win(id);
   if (!w) return false;
@@ -141,7 +220,7 @@ function sideActivate(e) {
   return true;
 }
 slotSide.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('#btnSplitClose')) return;
+  if (e.target.closest('.tabs')) return; // sus pestañas funcionan como las de la otra ventana
   // Las barras de desplazamiento de la tabla siguen sirviendo para moverse sin activarla.
   const wr = sideGrid.wrap;
   if (e.target === wr && (e.offsetX >= wr.clientWidth || e.offsetY >= wr.clientHeight)) return;
@@ -149,15 +228,16 @@ slotSide.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   sideActivate(e);
 });
-// Clic derecho: se activa y sale el menú de lo pulsado (la gráfica, una columna o una fila).
+// Clic derecho: recibe el foco y sale el menú de lo pulsado (la gráfica, una columna o una fila).
 slotSide.addEventListener('contextmenu', (e) => {
+  if (e.target.closest('.tabs')) return;
   e.preventDefault();
   if (!sideActivate(e)) return;
   if (activeGraph()) { openCtxMenu(e.clientX, e.clientY); return; }
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (el && gridEl.contains(el)) el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
 });
-// La rueda sobre la gráfica de al lado la activa; los siguientes giros ya hacen zoom en ella.
+// La rueda sobre la gráfica sin foco la activa; los siguientes giros ya hacen zoom en ella.
 gview2.addEventListener('wheel', (e) => { e.preventDefault(); sideActivate(e); }, { passive: false });
 $('btnSplitClose').addEventListener('click', splitClose);
 
@@ -199,18 +279,135 @@ splitter.addEventListener('keydown', (e) => {
   setSplitRatio(UI.split.ratio + d * 0.05);
 });
 
+/* ---------- arrastrar pestañas ---------- */
+
+const tabMark = document.createElement('div');
+tabMark.className = 'tabmark';
+tabMark.hidden = true;
+document.body.appendChild(tabMark);
+const splitPreview = $('splitPreview');
+let tabDrag = null, swallowClick = false;
+
+// Más allá de la segunda de las dos rayas que dividen la zona de trabajo en tres.
+function pastSplitEdge(x, y) {
+  const r = panes.getBoundingClientRect();
+  return narrowScreen() ? y > r.top + r.height * 2 / 3 : x > r.left + r.width * 2 / 3;
+}
+const inRect = (x, y, r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+// Dónde caería la pestaña id: en una barra de pestañas (y delante de cuál), en la otra ventana o
+// en una ventana nueva.
+function tabDropTarget(x, y, id) {
+  const S = UI.split;
+  const bars = S ? [[$('tabs'), S.focus], [$('tabs2'), 1 - S.focus]] : [[$('tabs'), 0]];
+  for (const [el, g] of bars) {
+    const r = el.parentElement.getBoundingClientRect();
+    if (!inRect(x, y, r)) continue;
+    const tabs = [...el.querySelectorAll('.tab')].filter((tb) => +tb.dataset.id !== id);
+    const last = tabs[tabs.length - 1], lastR = last && last.getBoundingClientRect();
+    if (!S && !narrowScreen() && pastSplitEdge(x, y) && (!last || x > lastR.right + 16)) return { kind: 'new' };
+    const before = tabs.find((tb) => { const b = tb.getBoundingClientRect(); return x < b.left + b.width / 2; });
+    const mx = before ? before.getBoundingClientRect().left - 2 : last ? lastR.right + 1 : el.getBoundingClientRect().left + 2;
+    return { kind: 'tabs', g, before: before ? +before.dataset.id : null, x: mx, top: r.top + 6, h: r.height - 6 };
+  }
+  if (!inRect(x, y, panes.getBoundingClientRect())) return null;
+  if (!S) return pastSplitEdge(x, y) ? { kind: 'new' } : null;
+  const slot = [slotMain, slotSide].find((sl) => inRect(x, y, sl.getBoundingClientRect()));
+  if (!slot) return null;
+  const g = slot === slotMain ? S.focus : 1 - S.focus;
+  return g !== groupOf(id) ? { kind: 'group', g, slot } : null;
+}
+function showDropFeedback(T) {
+  tabMark.hidden = !(T && T.kind === 'tabs');
+  if (!tabMark.hidden) Object.assign(tabMark.style, { left: `${T.x}px`, top: `${T.top}px`, height: `${T.h}px` });
+  let r = null, text = '';
+  if (T && T.kind === 'new') {
+    const p = panes.getBoundingClientRect();
+    r = narrowScreen() ? { left: p.left, top: p.top + p.height / 2, width: p.width, height: p.height / 2 }
+      : { left: p.left + p.width / 2, top: p.top, width: p.width / 2, height: p.height };
+    text = t('split_drop');
+  } else if (T && T.kind === 'group') {
+    r = T.slot.getBoundingClientRect();
+    text = t('split_move');
+  }
+  if (!r) { splitPreview.classList.remove('show'); return; }
+  Object.assign(splitPreview.style, { left: `${r.left + 4}px`, top: `${r.top + 4}px`, width: `${r.width - 8}px`, height: `${r.height - 8}px` });
+  splitPreview.firstElementChild.textContent = text;
+  splitPreview.classList.add('show');
+}
+
+function tabPointerDown(e) {
+  const tab = e.target.closest('.tab');
+  if (!tab || e.button !== 0 || e.target.closest('.tx, input')) return;
+  const r = tab.getBoundingClientRect();
+  tabDrag = { id: +tab.dataset.id, tab, x0: e.clientX, y0: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, on: false, target: null };
+}
+$('tabs').addEventListener('pointerdown', tabPointerDown);
+$('tabs2').addEventListener('pointerdown', tabPointerDown);
+window.addEventListener('pointermove', (e) => {
+  const D = tabDrag;
+  if (!D) return;
+  if (!(e.buttons & 1)) { tabDragEnd(true); return; }
+  if (!D.on) {
+    if (Math.hypot(e.clientX - D.x0, e.clientY - D.y0) < 6) return;
+    D.on = true;
+    D.ghost = D.tab.cloneNode(true);
+    D.ghost.classList.add('ghost');
+    D.ghost.style.width = `${D.tab.getBoundingClientRect().width}px`;
+    document.body.appendChild(D.ghost);
+    D.tab.classList.add('dragging');
+    document.body.classList.add('tab-moving');
+    closeCtxMenu();
+  }
+  D.ghost.style.transform = `translate(${e.clientX - D.dx}px, ${e.clientY - D.dy}px)`;
+  D.target = tabDropTarget(e.clientX, e.clientY, D.id);
+  showDropFeedback(D.target);
+});
+window.addEventListener('pointerup', () => { if (tabDrag) tabDragEnd(false); });
+document.addEventListener('keydown', (e) => {
+  if (tabDrag && tabDrag.on && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); tabDragEnd(true); }
+}, true);
+// Tras arrastrar, el clic que manda el navegador al soltar no debe activar nada.
+document.addEventListener('click', (e) => { if (swallowClick) { swallowClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+
+function tabDragEnd(cancel) {
+  const D = tabDrag;
+  tabDrag = null;
+  if (!D || !D.on) return;
+  swallowClick = true;
+  setTimeout(() => { swallowClick = false; }, 0);
+  document.body.classList.remove('tab-moving');
+  D.tab.classList.remove('dragging');
+  tabMark.hidden = true;
+  splitPreview.classList.remove('show');
+  const T = cancel ? null : D.target;
+  let moved = false;
+  if (T && T.kind === 'new') moved = moveTab(D.id, 1);
+  else if (T && T.kind === 'group') moved = moveTab(D.id, T.g);
+  else if (T && T.kind === 'tabs') moved = moveTab(D.id, T.g, T.before);
+  // La copia vuela hasta la pestaña en su sitio (o vuelve a la original) y desaparece.
+  const ghost = D.ghost, dest = document.querySelector(`.tablist .tab[data-id="${D.id}"]`);
+  if (reducedMotion() || !dest || (moved && T.kind === 'new')) {
+    ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reducedMotion() ? 0 : 200 }).onfinish = () => ghost.remove();
+    return;
+  }
+  const r = dest.getBoundingClientRect();
+  ghost.animate([{ transform: ghost.style.transform }, { transform: `translate(${r.left}px, ${r.top}px)` }], { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = () => ghost.remove();
+}
+
 /* ---------- entradas: botón y clic derecho en las pestañas ---------- */
 
 $('btnSplit').addEventListener('click', splitToggle);
-$('tabs').addEventListener('contextmenu', (e) => {
-  const tab = e.target.closest('.tab');
-  if (!tab || tab.querySelector('input')) return;
-  e.preventDefault();
-  const id = +tab.dataset.id;
-  const item = (ctx, key) => `<button role="menuitem" data-ctx="${ctx}" data-id="${id}">${esc(t(key))}</button>`;
-  let h = '';
-  if (id !== P.active && id !== sideId()) h += item('beside', 'tab_beside');
-  if (UI.split) h += item('unsplit', 'split_close');
-  if (h) h += '<hr>';
-  showCtxMenu(h + item('rename', 'tab_rename') + item('closewin', 'tab_close'), e.clientX, e.clientY);
-});
+for (const bar of [$('tabs'), $('tabs2')]) {
+  bar.addEventListener('contextmenu', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab || tab.querySelector('input')) return;
+    e.preventDefault();
+    const id = +tab.dataset.id;
+    const item = (ctx, key) => `<button role="menuitem" data-ctx="${ctx}" data-id="${id}">${esc(t(key))}</button>`;
+    let h = '';
+    if (P.wins.length > 1) h += item('beside', UI.split ? 'tab_move' : 'tab_beside');
+    if (UI.split) h += item('unsplit', 'split_close');
+    if (h) h += '<hr>';
+    showCtxMenu(h + item('rename', 'tab_rename') + item('closewin', 'tab_close'), e.clientX, e.clientY);
+  });
+}
