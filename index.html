@@ -11,6 +11,35 @@
 <body>
 <header class="topbar">
   <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 4V27H29" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/><path d="M8 24Q17 22 27 6" fill="none" stroke="#e8763f" stroke-width="2.2" stroke-linecap="round"/><circle cx="11" cy="20.6" r="2.2" fill="currentColor"/><circle cx="16.6" cy="19.9" r="2.2" fill="currentColor"/><circle cx="21" cy="13.4" r="2.2" fill="currentColor"/><circle cx="25.6" cy="10" r="2.2" fill="currentColor"/></svg>PlotIt</div>
+  <nav class="menubar" id="menubar">
+    <div class="menu">
+      <button class="menu-btn" aria-haspopup="menu" aria-expanded="false" data-i18n="m_analysis">Analysis</button>
+      <div class="menu-list" role="menu" hidden>
+        <button role="menuitem" data-an="fft" data-i18n="an_fft">FFT (spectrum)…</button>
+        <button role="menuitem" data-an="filter" data-i18n="an_filter">FFT filter…</button>
+        <button role="menuitem" data-an="smooth" data-i18n="an_smooth">Smooth…</button>
+        <button role="menuitem" data-an="interp" data-i18n="an_interp">Interpolate…</button>
+        <hr>
+        <button role="menuitem" data-an="corr" data-i18n="an_corr">Correlation…</button>
+        <button role="menuitem" data-an="hist" data-i18n="an_hist">Histogram…</button>
+        <button role="menuitem" data-an="peaks" data-i18n="an_peaks">Find peaks…</button>
+        <hr>
+        <button role="menuitem" data-an="deriv" data-i18n="an_deriv">Differentiate (d/dX)</button>
+        <button role="menuitem" data-an="integ" data-i18n="an_integ">Integrate (∫ dX)</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-btn" aria-haspopup="menu" aria-expanded="false" data-i18n="m_graph">Graph</button>
+      <div class="menu-list" role="menu" hidden>
+        <button role="menuitem" data-cmd="gformat" data-need="graph" data-i18n="mg_format">Graph format…</button>
+        <button role="menuitem" data-cmd="cformat" data-need="graph" data-i18n="mg_curves">Curve format…</button>
+        <hr>
+        <button role="menuitem" data-cmd="autoscale" data-need="graph" data-i18n="autoscale">Autoscale</button>
+        <button role="menuitem" data-cmd="png" data-need="graph" data-i18n="mg_png">Export PNG</button>
+        <button role="menuitem" data-cmd="svg" data-need="graph" data-i18n="mg_svg">Export SVG</button>
+      </div>
+    </div>
+  </nav>
   <div class="actions">
     <label class="btn primary" data-i18n-title="import_t"><span data-i18n="import">Import data</span><input id="fileData" type="file" multiple hidden></label>
     <label class="btn"><span data-i18n="open_project">Open project</span><input id="fileProject" type="file" accept=".json,application/json" hidden></label>
@@ -116,6 +145,7 @@
         <button class="seg-btn active" data-style="scatter" data-i18n="st_scatter">Scatter</button>
         <button class="seg-btn" data-style="line" data-i18n="st_line">Line</button>
         <button class="seg-btn" data-style="both" data-i18n="st_both">Line + symbols</button>
+        <button class="seg-btn" data-style="bars" data-i18n="st_bars">Bars</button>
       </div>
       <div class="plotdest">
         <select id="plotDest" data-i18n-aria="plot_dest"></select>
@@ -150,6 +180,7 @@
       <summary data-i18n="p_curves">Curves</summary>
       <div id="curveList" class="curvelist"></div>
       <div id="curveProps"></div>
+      <div class="btnrow"><button class="btn small" id="btnCurveFmt" data-i18n="more_fmt">More options…</button></div>
       <div class="sub">
         <div class="subhead" data-i18n="add_head">Add</div>
         <div class="addrow">
@@ -237,6 +268,7 @@
           <select id="gPngScale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option><option value="4">4×</option></select>
         </label>
       </div>
+      <div class="btnrow"><button class="btn small" id="btnGraphFmt" data-i18n="more_fmt">More options…</button></div>
       <p class="hint" data-i18n-html="hint_axes_html"></p>
     </details>
 
@@ -264,13 +296,54 @@
   <div class="ask-actions" id="askActions"></div>
 </dialog>
 
+<dialog id="anDlg" class="ask an" aria-labelledby="anTitle">
+  <h2 id="anTitle"></h2>
+  <p id="anDesc"></p>
+  <div class="grid2" id="anSrc"></div>
+  <p class="hint" id="anInfo"></p>
+  <div class="grid2 sub" id="anOpts"></div>
+  <label class="chk"><input type="checkbox" id="anPlot" checked> <span data-i18n="an_plot">Plot the result</span></label>
+  <p class="err" id="anErr" hidden></p>
+  <div class="ask-actions">
+    <button class="btn" id="anCancel" data-i18n="cancel">Cancel</button>
+    <button class="btn primary" id="anRun" data-i18n="an_run">Calculate</button>
+  </div>
+</dialog>
+
+<dialog id="gfDlg" class="ask fmt" aria-labelledby="gfTitle">
+  <h2 id="gfTitle" data-i18n="mg_format_t">Graph format</h2>
+  <div class="seg wide fmt-tabs" role="tablist">
+    <button class="seg-btn" data-tab="axes" data-i18n="fmt_tab_axes">Axes</button>
+    <button class="seg-btn" data-tab="frame" data-i18n="fmt_tab_frame">Frame and grid</button>
+    <button class="seg-btn" data-tab="text" data-i18n="fmt_tab_text">Text and legend</button>
+    <button class="seg-btn" data-tab="page" data-i18n="fmt_tab_page">Page</button>
+  </div>
+  <div id="gfBody"></div>
+  <div class="ask-actions">
+    <button class="btn" id="gfCancel" data-i18n="cancel">Cancel</button>
+    <button class="btn primary" id="gfOk" data-i18n="ok">OK</button>
+  </div>
+</dialog>
+
+<dialog id="cfDlg" class="ask fmt" aria-labelledby="cfTitle">
+  <h2 id="cfTitle" data-i18n="mg_curves_t">Curve format</h2>
+  <label class="cfpick"><span data-i18n="cf_curve">Curve</span><select id="cfCurve"></select></label>
+  <div class="grid2" id="cfBody"></div>
+  <div class="ask-actions">
+    <button class="btn" id="cfCancel" data-i18n="cancel">Cancel</button>
+    <button class="btn primary" id="cfOk" data-i18n="ok">OK</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" hidden></div>
 <script src="i18n.js"></script>
 <script src="expr.js"></script>
 <script src="fit.js"></script>
+<script src="analysis.js"></script>
 <script src="core.js"></script>
 <script src="table.js"></script>
 <script src="graph.js"></script>
+<script src="menu.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

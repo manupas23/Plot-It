@@ -176,7 +176,7 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .panel > :last-child { margin-bottom: 12px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 8px; }
 .grid2 label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
-.grid2 label.wide { grid-column: 1 / -1; }
+.grid2 label.wide, .grid2 > .wide { grid-column: 1 / -1; }
 .grid2 label.chk { flex-direction: row; align-self: end; padding-bottom: 6px; }
 input[type=number], input[type=text], select, textarea {
   background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border);
@@ -292,3 +292,53 @@ dialog.ask p:empty { display: none; }
   body { height: auto; }
   .layout { flex: none; }
 }
+
+/* Barra de menús (Análisis, Gráfica). */
+.menubar { display: flex; gap: 2px; margin-left: 10px; }
+.menu { position: relative; }
+.menu-btn {
+  border: 0; background: none; color: var(--text-secondary); font: inherit; padding: 6px 10px; border-radius: 7px; cursor: pointer;
+}
+.menu-btn:hover, .menu-btn[aria-expanded="true"] { background: var(--surface-2); color: var(--text-primary); }
+.menu-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; min-width: 240px; padding: 5px;
+  display: flex; flex-direction: column; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.4);
+}
+.menu-list[hidden] { display: none; }
+.menu-list button {
+  text-align: left; border: 0; background: none; color: var(--text-primary); font: inherit; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+}
+.menu-list button:hover:not(:disabled), .menu-list button:focus-visible { background: var(--sel); outline: none; }
+.menu-list button:disabled { color: var(--text-muted); cursor: default; }
+.menu-list hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+
+/* Diálogos de análisis y de formato. */
+dialog.an { max-width: 520px; }
+dialog.an #anDesc { font-size: 13px; }
+dialog.an .grid2 label.wide[hidden] { display: none; }
+dialog.ask .chk { margin-top: 4px; }
+dialog.fmt {
+  max-width: 470px; margin: 64px 18px auto auto; max-height: calc(100vh - 82px); overflow: auto;
+}
+dialog.fmt::backdrop { background: rgba(0,0,0,.12); }
+.fmt-tabs { margin: 4px 0 12px; }
+.fmt-tabs .seg-btn { font-size: 12.5px; }
+.axtab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.axtab th { text-align: left; font-weight: 400; color: var(--text-secondary); padding: 3px 8px 3px 0; white-space: nowrap; }
+.axtab thead th { font-weight: 600; color: var(--text-primary); }
+.axtab td { padding: 3px 4px; width: 38%; }
+.axtab td input[type=text], .axtab td input[type=number], .axtab td select { width: 100%; }
+.cfpick { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 12.5px; color: var(--text-secondary); }
+.cfpick select { flex: 1; }
+#cfBody .subhead { margin: 8px 0 -2px; }
+.symgrid { display: flex; flex-wrap: wrap; gap: 4px; }
+.symbtn {
+  width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 7px;
+  background: #fff; cursor: pointer; padding: 0;
+}
+.symbtn.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ocolor { display: flex; align-items: center; gap: 8px; }
+.ocolor input[type=color]:disabled { opacity: .35; }
+.ocolor .chk { font-size: 12px; margin: 0; }
+input[type=color] { width: 44px; height: 28px; padding: 1px 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); cursor: pointer; }

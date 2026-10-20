@@ -578,7 +578,7 @@ function syncTablePanels() {
 
 /* ---------- de la tabla a una gráfica ---------- */
 
-const SYMBOLS = ['circle', 'square', 'triangle', 'diamond', 'down', 'cross', 'plus', 'star'];
+const SYMBOLS = ['circle', 'square', 'triangle', 'diamond', 'down', 'cross', 'plus', 'star', 'left', 'right', 'pentagon', 'hexagon'];
 function nextColor(g) {
   const used = new Set(g.curves.map((c) => c.color));
   return COLORS.find((c) => !used.has(c)) || COLORS[g.curves.length % COLORS.length];

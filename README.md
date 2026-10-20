@@ -16,10 +16,11 @@ Open `index.html` in Chrome, Edge or Firefox.
 3. **Compute new columns** with a formula (*Set values from a formula*), sort, normalize, differentiate or integrate (*Operations*). The *Statistics* panel summarises the selection.
 4. **Plot.** Select one or more Y columns (click their headers, `Ctrl`+click for several) and press *Plot*, into a new graph or an existing one. In the graph, the *Curves* panel changes colours, symbols, lines and error columns, and adds more data or functions $f(x)$.
 5. **Fit.** In the *Fit* panel choose the data and a model, or write your own expression. `Shift`+drag on the graph limits the $x$ range. *Fit* draws the curve and prints the parameters with their errors, $\chi^2/\nu$, $R^2$ and RMSE; the result is also kept in the *Results log*. *Residuals → table* writes $x$, $y$, the fitted value and the residual of each point.
-6. **Export.** The white page is exactly what gets exported: set its size, font size, titles, axis ranges, log scales, grid and legend in *Axes and layout*, then press *PNG* (1–4× scale) or *SVG*. Tables are exported with *Export CSV* (standard, or with `;` and a decimal comma for Excel in Spanish and other European locales).
-7. **Save.** *Save project* (`Ctrl+S`) writes a `.plotit.json` file with every table, graph and the log; *Open project* loads it back. Your work is also kept automatically in the browser, and offered back when you open PlotIt again.
+6. **Analyse.** The *Analysis* menu in the top bar holds the FFT, FFT filters, smoothing, interpolation, correlation, histograms and peak finding, see [Analysis](#analysis). Each tool opens a dialog with the selected column or curve already chosen, writes its result to a new column or table, can plot it, and leaves a summary in the *Results log*.
+7. **Format and export.** The side panel holds the quick settings; the detailed ones are in the *Graph* menu, see [Graph and curve format](#graph-and-curve-format). The white page is exactly what gets exported: set its size, font size, titles, axis ranges, log scales, grid and legend in *Axes and layout*, then press *PNG* (1–4× scale) or *SVG*. Tables are exported with *Export CSV* (standard, or with `;` and a decimal comma for Excel in Spanish and other European locales).
+8. **Save.** *Save project* (`Ctrl+S`) writes a `.plotit.json` file with every table, graph and the log; *Open project* loads it back. Your work is also kept automatically in the browser, and offered back when you open PlotIt again.
 
-In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values.
+In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values. A double-click on the axes or the margins opens the graph format.
 
 ### Formulas
 
@@ -53,6 +54,19 @@ For example, `A^2 + cell("B", i-1)` or, in a column next to `T` and `E`, `E/T`. 
 | Damped oscillation | `y0 + A*exp(-x/tau)*sin(2*pi*x/T + phi)` |
 
 Each built-in model estimates its own initial values from the data (*Guess* recomputes them). In a custom model every name other than `x` is a parameter; tick *Fixed* to keep a parameter at its value.
+
+### Graph and curve format
+
+*Graph → Graph format* (or *More options…* in *Axes and layout*) has four tabs, and the graph changes while you choose; *Cancel* or `Esc` puts it back as it was.
+
+| Tab | Options |
+|---|---|
+| Axes (X and Y side by side) | title, range, log scale, tick step, number of minor ticks, ticks in, out, crossing the axis or none, ticks also on the opposite side, numbers automatic, decimal or scientific ($\times 10^n$), number of decimals, hide the numbers |
+| Frame and grid | closed box, X and Y axes only or no frame; axis line width; tick length; major and minor grid and its colour |
+| Text and legend | title, font (Arial, Helvetica, Calibri, Verdana, Times, Georgia, monospace), font size, relative sizes of the title, tick numbers and legend, legend position and frame |
+| Page | width and height in pixels, background colour or transparent background (PNG and SVG) |
+
+*Graph → Curve format* (or *More options…* in *Curves*) edits one curve at a time: style (points, line, line and points, bars), 12 symbols (circle, square, triangles in four directions, diamond, cross, plus, star, pentagon, hexagon), solid or hollow, fill colour and opacity, edge width, points joined with straight lines, steps or a smooth curve (Catmull–Rom spline through the points), line width and dash, error-bar width, cap and colour, and bar width as a fraction of the spacing between points.
 
 ## Calculations
 
@@ -120,6 +134,46 @@ The total area $I_n$ is shown and written to the *Results log*.
 
 For the $N$ numbers in the selection: mean $\bar y$, sample standard deviation $s = \sqrt{\sum (y_i - \bar y)^2/(N-1)}$, standard error of the mean $s/\sqrt N$, minimum, maximum, sum and median. *Normalize* divides a column by its largest absolute value.
 
+### Analysis
+
+All the tools use the rows where both X and the column are numbers (with no X column, X is the row number). The pairs are sorted by X, and repeated X values are averaged.
+
+**FFT.** For $N$ points with constant step $\Delta x$ (if the steps are not equal, the data are first resampled on $N$ equal steps by linear interpolation), the mean is subtracted (optional), the window $w_k$ is applied and
+
+```math
+X_m = \sum_{k=0}^{N-1} w_k\,y_k\,e^{-2\pi i\,km/N},
+\qquad
+f_m = \frac{m}{N\,\Delta x},\quad m = 0,\dots,\lfloor N/2\rfloor
+```
+
+is computed for any $N$ (radix 2 when $N$ is a power of two, Bluestein's algorithm otherwise, so there is no zero padding). The one-sided amplitude and power spectral density are
+
+```math
+A_m = \frac{c_m\,|X_m|}{\sum_k w_k},
+\qquad
+\text{PSD}_m = \frac{c_m\,|X_m|^2\,\Delta x}{\sum_k w_k^2}
+```
+
+with $c_m = 1$ at $f = 0$ and at the Nyquist frequency $1/(2\Delta x)$ and $c_m = 2$ elsewhere, so a sine of amplitude $A$ gives a peak of height $A$, and with the rectangular window $\sum_m \text{PSD}_m\,\Delta f$ is the variance of the data (Parseval). The phase is $\arg X_m$ in degrees. The windows are Hann $0.5 - 0.5\cos\frac{2\pi k}{N-1}$, Hamming $0.54 - 0.46\cos\frac{2\pi k}{N-1}$ and Blackman $0.42 - 0.5\cos\frac{2\pi k}{N-1} + 0.08\cos\frac{4\pi k}{N-1}$. The main peak (leaving out $f = 0$) is refined with a parabola through its two neighbours, and its frequency and period are written to the log.
+
+**FFT filter.** It needs equal X steps. The straight line joining the first and last points is subtracted (so the FFT, which treats the data as periodic, does not see a jump), every coefficient whose frequency $\min(m, N-m)/(N\Delta x)$ is outside the pass band is set to zero, the inverse FFT is taken and the line is added back if the filter keeps $f = 0$. Low-pass keeps $f \le f_1$, high-pass $f \ge f_1$, band-pass $f_1 \le f \le f_2$, and band-stop removes $f_1 < f < f_2$. The cut is sharp, so expect some ringing next to steps in the data.
+
+**Smoothing.** The moving average replaces each point with the mean of the $w$ points centred on it (fewer at the ends). Savitzky–Golay fits, by least squares, a polynomial of degree $p$ to the $w$ points around each $x_i$ and takes its value at $x_i$. The fit uses the real $x$ values, so it also works with unequal steps, and at the ends the window is shifted inwards instead of shortened. With $p \ge 2$ it keeps the height and width of peaks much better than the moving average.
+
+**Interpolation.** The curve is evaluated at $n$ equally spaced points between *From* and *To* (by default, the data range), with straight lines between the data or with a natural cubic spline: piecewise cubics with continuous first and second derivatives and zero second derivative at both ends.
+
+**Correlation.** With $a'_i = a_i - \bar a$ and $b'_i = b_i - \bar b$,
+
+```math
+r(k) = \frac{\sum_i a'_i\,b'_{i+k}}{\sqrt{\sum_i a'^2_i\,\sum_i b'^2_i}}
+```
+
+computed with the FFT and zero padding (no circular wrap-around). The lag is $k\,\Delta x$ when the steps are equal, and $k$ rows otherwise. For the autocorrelation ($b = a$, $r(0) = 1$) the log gives the first zero, the lag where $r$ falls below $1/e$ and the correlation time $\int r\,\mathrm d\tau$ up to the first zero (trapezoids). For the cross-correlation, it gives the largest $|r|$ and its lag; a positive lag means $b$ follows $a$.
+
+**Histogram.** Equal bins between the smallest and largest value (or *From* and *To*); the largest value falls in the last bin. Without a number of bins, the width follows the Freedman–Diaconis rule $h = 2\,\text{IQR}\,N^{-1/3}$, or Sturges' rule ($\lceil\log_2 N\rceil + 1$ bins) when the interquartile range is zero. The table has the bin centres, the counts and the probability density $n_j/(N_\text{in}\,h)$, which integrates to 1.
+
+**Peaks.** A peak is a point higher than its neighbours (a flat top counts once). Its *prominence* is its height above the higher of the two lowest points that separate it from a higher point on each side (or from the end of the data); its *width* is measured at half the prominence, interpolating linearly between points. Peaks below the minimum prominence (a percentage of the $y$ range) are dropped, and of two peaks closer than the minimum distance in $x$ the more prominent one is kept. Minima are found as the peaks of $-y$.
+
 ### Import
 
 Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spaces), and the one that gives the most lines with the same number of numeric fields wins. Decimal commas are accepted unless `,` is the delimiter; `nan` and `inf` become empty cells, and lines starting with `#`, `%`, `//` or `!` are comments. The data are the longest block of consecutive numeric lines, and its header is the non-numeric line just above it with the same number of fields (a commented header such as `# x y err` counts). Other blocks with the same header are appended, so a LAMMPS log with several `run` commands gives one table with all the thermo output, and the text in between (warnings, loop times) is skipped.
@@ -135,6 +189,7 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste (tab-separated, compatible with spreadsheets) |
 | `Ctrl+A` | Select the whole table |
 | Wheel, drag, double-click | Zoom, pan and autoscale a graph |
+| Double-click on the axes or margins | Graph format |
 | `Shift`+drag | Set the fit range on a graph |
 | `A` | Autoscale the graph |
 | `Ctrl+S` | Save the project |

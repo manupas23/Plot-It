@@ -56,7 +56,13 @@ function richParse(s) {
   return segs;
 }
 
-function setFont(ctx, px, weight = 400) { ctx.font = `${weight} ${px}px ${FONT}`; }
+// Familias de letra para las gráficas (sin comillas: así valen igual en canvas y en SVG).
+const FAMILIES = {
+  Arial: 'Arial, Helvetica, sans-serif', Helvetica: 'Helvetica, Arial, sans-serif', Calibri: 'Calibri, Carlito, sans-serif',
+  Verdana: 'Verdana, sans-serif', Times: 'Times New Roman, Times, serif', Georgia: 'Georgia, serif', Mono: 'Consolas, Courier New, monospace',
+};
+let fontCur = FONT; // familia de la gráfica que se está dibujando
+function setFont(ctx, px, weight = 400) { ctx.font = `${weight} ${px}px ${fontCur}`; }
 
 function richWidth(ctx, s, fs, weight = 400) {
   let w = 0;
@@ -128,55 +134,62 @@ function rangeFor(ax, a, b, log, def) {
 
 const minusSign = (s) => s.replace(/^-/, '−');
 
-function linTicks(lo, hi, n) {
-  const st = niceStep((hi - lo) / Math.max(1, n));
+// Marcas de un eje lineal. Opciones (o): step = paso fijo entre marcas principales; minor =
+// marcas menores entre dos principales (0 = ninguna, null = automático); fmt = 'auto', 'dec'
+// (decimal) o 'sci' (m×10^e); dec = número de decimales (null = automático).
+function linTicks(lo, hi, n, o = {}) {
+  let st = niceStep((hi - lo) / Math.max(1, n));
+  if (o.step > 0 && (hi - lo) / o.step <= 500) st = o.step;
   const mag = Math.pow(10, Math.floor(Math.log10(st) + 1e-9));
   const m = Math.round((st / mag) * 10) / 10;
-  const mst = st / (m === 2 ? 4 : 5);
+  const div = o.minor != null ? o.minor + 1 : m === 2 ? 4 : 5;
+  const mst = st / div;
   const major = [], minor = [];
   for (let k = Math.ceil(lo / st - 1e-9); k * st <= hi + st * 1e-9; k++) major.push(+(k * st).toPrecision(12));
-  for (let k = Math.ceil(lo / mst - 1e-9); k * mst <= hi + mst * 1e-9; k++) minor.push(k * mst);
-  // Etiquetas: notación científica por etiqueta si los números son muy grandes o muy pequeños.
+  if (div > 1 && (hi - lo) / mst <= 5000) for (let k = Math.ceil(lo / mst - 1e-9); k * mst <= hi + mst * 1e-9; k++) minor.push(k * mst);
+  // Etiquetas: en automático, notación científica si los números son muy grandes o muy pequeños.
   const maxAbs = Math.max(...major.map(Math.abs));
-  const sci = maxAbs >= 1e5 || (maxAbs > 0 && maxAbs < 1e-3);
+  const sci = o.fmt === 'sci' || (o.fmt !== 'dec' && (maxAbs >= 1e5 || (maxAbs > 0 && maxAbs < 1e-3)));
+  const fixed = o.dec != null;
   const labels = major.map((v) => {
-    if (Math.abs(v) < st * 1e-6) return '0';
+    if (Math.abs(v) < st * 1e-6 && !(fixed && !sci)) return '0';
     if (!sci) {
-      const d = Math.max(0, Math.ceil(-Math.log10(st) - 1e-9) + (m === 2.5 ? 1 : 0));
-      return minusSign(v.toFixed(Math.min(d, 12)));
+      const d = fixed ? o.dec : Math.max(0, Math.ceil(-Math.log10(st) - 1e-9) + (m === 2.5 ? 1 : 0));
+      return minusSign((Math.abs(v) < st * 1e-6 ? 0 : v).toFixed(clamp(d, 0, 12)));
     }
     const e = Math.floor(Math.log10(Math.abs(v)) + 1e-9);
     const mant = v / Math.pow(10, e);
-    const d = clamp(Math.ceil(-Math.log10(st / Math.pow(10, e)) - 1e-9), 0, 6);
+    const d = fixed ? clamp(o.dec, 0, 12) : clamp(Math.ceil(-Math.log10(st / Math.pow(10, e)) - 1e-9), 0, 6);
     const ms = mant.toFixed(d);
     const es = e < 0 ? '−' + -e : String(e);
-    if (/^-?1(\.0*)?$/.test(ms)) return (mant < 0 ? '−' : '') + `10^{${es}}`;
+    if (!fixed && /^-?1(\.0*)?$/.test(ms)) return (mant < 0 ? '−' : '') + `10^{${es}}`;
     return `${minusSign(ms)}×10^{${es}}`;
   });
   return { major, minor, labels };
 }
 
-function logTicks(lo, hi, n) {
+function logTicks(lo, hi, n, o = {}) {
   const ka = Math.ceil(Math.log10(lo) - 1e-9), kb = Math.floor(Math.log10(hi) + 1e-9);
   if (kb - ka + 1 < 2) {
     // Menos de dos décadas a la vista: marcas lineales sobre la escala logarítmica.
-    const t = linTicks(lo, hi, n);
+    const t = linTicks(lo, hi, n, { ...o, step: null });
     const keep = t.major.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
     return { major: keep.map((i) => t.major[i]), labels: keep.map((i) => t.labels[i]), minor: t.minor.filter((v) => v > 0) };
   }
   const every = Math.max(1, Math.ceil((kb - ka + 1) / Math.max(2, n)));
   const major = [], labels = [], minor = [];
+  const lab = (k) => (o.fmt === 'dec' ? minusSign(String(+Math.pow(10, k).toPrecision(6))) : `10^{${k < 0 ? '−' + -k : k}}`);
   for (let k = ka; k <= kb; k++) {
-    if ((k - ka) % every) { minor.push(Math.pow(10, k)); continue; }
+    if ((k - ka) % every) { if (o.minor !== 0) minor.push(Math.pow(10, k)); continue; }
     major.push(Math.pow(10, k));
-    labels.push(`10^{${k < 0 ? '−' + -k : k}}`);
+    labels.push(lab(k));
   }
-  if (every === 1) {
+  if (every === 1 && o.minor !== 0) {
     for (let k = ka - 1; k <= kb; k++) for (let m = 2; m <= 9; m++) { const v = m * Math.pow(10, k); if (v >= lo && v <= hi) minor.push(v); }
   }
   return { major, minor, labels };
 }
-const axisTicks = (lo, hi, log, n) => (log ? logTicks(lo, hi, n) : linTicks(lo, hi, n));
+const axisTicks = (lo, hi, log, n, o) => (log ? logTicks(lo, hi, n, o) : linTicks(lo, hi, n, o));
 
 /* ---------- curvas ---------- */
 
@@ -258,6 +271,17 @@ function symbolPath(ctx, kind, x, y, r) {
       }
       ctx.closePath();
       break;
+    case 'left': ctx.moveTo(x - r * 1.15, y); ctx.lineTo(x + r * 0.6, y - r); ctx.lineTo(x + r * 0.6, y + r); ctx.closePath(); break;
+    case 'right': ctx.moveTo(x + r * 1.15, y); ctx.lineTo(x - r * 0.6, y - r); ctx.lineTo(x - r * 0.6, y + r); ctx.closePath(); break;
+    case 'pentagon': case 'hexagon': {
+      const k = kind === 'hexagon' ? 6 : 5, rr = r * (k === 6 ? 1.05 : 1.1);
+      for (let j = 0; j < k; j++) {
+        const a = -Math.PI / 2 + (j * 2 * Math.PI) / k;
+        j ? ctx.lineTo(x + rr * Math.cos(a), y + rr * Math.sin(a)) : ctx.moveTo(x + rr * Math.cos(a), y + rr * Math.sin(a));
+      }
+      ctx.closePath();
+      break;
+    }
     default: ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI);
   }
 }
@@ -265,76 +289,124 @@ const STROKE_SYMBOLS = new Set(['cross', 'plus']);
 const DASHES = { solid: [], dash: [7, 4], dot: [1.5, 3], dashdot: [7, 3, 1.5, 3] };
 const dashFor = (c) => (DASHES[c.dash] || []).map((v) => v * Math.max(1, c.width));
 
+// Símbolos: relleno (fillColor, o el color de la curva; blanco si fill = false), opacidad del
+// relleno (alpha) y borde del color de la curva (edge = grosor; por defecto solo si hace falta).
 function drawSymbols(ctx, c, pts) {
   const r = c.size / 2;
   ctx.setLineDash([]);
   ctx.beginPath();
   for (const p of pts) symbolPath(ctx, c.symbol, p.px, p.py, r);
   if (STROKE_SYMBOLS.has(c.symbol)) {
-    ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(1, c.size / 6); ctx.stroke();
-  } else if (c.fill !== false) {
-    ctx.fillStyle = c.color; ctx.fill();
-  } else {
-    ctx.fillStyle = '#fff'; ctx.fill();
-    ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(1, c.size / 7); ctx.stroke();
+    ctx.strokeStyle = c.color; ctx.lineWidth = c.edge || Math.max(1, c.size / 6); ctx.stroke();
+    return;
+  }
+  const hollow = c.fill === false;
+  const edge = c.edge != null ? c.edge : hollow || (c.fillColor && c.fillColor !== c.color) ? Math.max(1, c.size / 7) : 0;
+  ctx.globalAlpha = hollow ? 1 : clamp(c.alpha ?? 1, 0, 1);
+  ctx.fillStyle = hollow ? '#fff' : c.fillColor || c.color;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  if (edge > 0) { ctx.strokeStyle = c.color; ctx.lineWidth = edge; ctx.stroke(); }
+}
+
+// Traza la línea que une los puntos: recta, en escalones (con el salto a mitad de camino) o
+// suave (spline de Catmull–Rom, que pasa por todos los puntos).
+function tracePath(ctx, pts, connect) {
+  ctx.moveTo(pts[0].px, pts[0].py);
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i - 1], q = pts[i];
+    if (connect === 'steps') {
+      const xm = (p.px + q.px) / 2;
+      ctx.lineTo(xm, p.py); ctx.lineTo(xm, q.py); ctx.lineTo(q.px, q.py);
+    } else if (connect === 'spline' && pts.length > 2) {
+      const a = pts[Math.max(0, i - 2)], d = pts[Math.min(pts.length - 1, i + 1)];
+      ctx.bezierCurveTo(p.px + (q.px - a.px) / 6, p.py + (q.py - a.py) / 6, q.px - (d.px - p.px) / 6, q.py - (d.py - p.py) / 6, q.px, q.py);
+    } else ctx.lineTo(q.px, q.py);
   }
 }
 
 /* ---------- dibujo de la gráfica ---------- */
 
+// Formato por defecto: lo que falte en una gráfica, un eje o una curva (proyectos anteriores o
+// valores sin tocar) toma estos valores. Los null también caen en el valor por defecto.
+const GRAPH_DEF = {
+  family: 'Arial', frame: 'box', lw: null, tickLen: null, grid: false, gridMinor: false, gridColor: '#d9d9d9',
+  tickScale: 0.9, titleScale: 1.1, legendFrame: true, legendScale: 0.8, bg: '#ffffff',
+};
+const AXIS_DEF = { dir: 'in', mirror: true, minor: null, step: null, fmt: 'auto', dec: null, labels: true };
+const CURVE_DEF = { fillColor: null, edge: null, alpha: 1, connect: 'straight', cap: null, errWidth: null, errColor: null, barW: 0.8 };
+function withDef(o, def) {
+  const r = { ...def };
+  for (const k in o) if (o[k] != null || !(k in def)) r[k] = o[k];
+  return r;
+}
+
 // Dibuja la gráfica g en un contexto 2D (canvas o SvgCtx) de W × H y devuelve su geometría.
-function drawGraph(ctx, g, W, H) {
-  const fs = g.font, lx = g.x.log, ly = g.y.log;
+function drawGraph(ctx, g0, W, H) {
+  const g = withDef(g0, GRAPH_DEF), ax = withDef(g0.x, AXIS_DEF), ay = withDef(g0.y, AXIS_DEF);
+  const fs = g.font, lx = ax.log, ly = ay.log;
   const ink = '#111';
+  fontCur = FAMILIES[g.family] || FONT;
   ctx.save();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, W, H);
+  if (g.bg !== 'none') { ctx.fillStyle = g.bg; ctx.fillRect(0, 0, W, H); }
 
   const vis = g.curves.filter((c) => !c.hidden);
-  const series = vis.map((c) => ({ c, pts: c.kind === 'data' ? dataPoints(c) : null }));
+  const series = vis.map((c) => ({ c, f: withDef(c, CURVE_DEF), pts: c.kind === 'data' ? dataPoints(c) : null }));
+  // Barras: su anchura es la menor separación entre x consecutivas por la fracción barW.
+  for (const s of series) {
+    if (s.c.kind !== 'data' || s.c.style !== 'bars' || !s.pts.length) continue;
+    const xs = s.pts.map((p) => p.x).sort((a, b) => a - b);
+    let d = Infinity;
+    for (let i = 1; i < xs.length; i++) if (xs[i] > xs[i - 1]) d = Math.min(d, xs[i] - xs[i - 1]);
+    s.bw = (isFinite(d) ? d : Math.abs(xs[0]) || 1) * clamp(s.f.barW, 0.05, 1);
+  }
 
   // Rango X: datos (con sus errores) y funciones con dominio propio.
   let xa = Infinity, xb = -Infinity;
   const addX = (v) => { if (isFinite(v) && (!lx || v > 0)) { if (v < xa) xa = v; if (v > xb) xb = v; } };
   for (const s of series) {
-    if (s.pts) for (const p of s.pts) { addX(p.x - p.ex); addX(p.x + p.ex); if (p.ex && lx) addX(p.x); }
+    if (s.pts) for (const p of s.pts) { addX(p.x - p.ex); addX(p.x + p.ex); if (p.ex && lx) addX(p.x); if (s.bw) { addX(p.x - s.bw / 2); addX(p.x + s.bw / 2); } }
     else { if (s.c.xmin != null) addX(s.c.xmin); if (s.c.xmax != null) addX(s.c.xmax); }
   }
-  const [xlo, xhi] = rangeFor(g.x, xa, xb, lx, lx ? [0.1, 100] : [-10, 10]);
+  const [xlo, xhi] = rangeFor(g0.x, xa, xb, lx, lx ? [0.1, 100] : [-10, 10]);
   for (const s of series) if (!s.pts) s.pts = funcPoints(s.c, xlo, xhi, lx);
 
-  // Rango Y: solo lo que cae dentro del rango X.
+  // Rango Y: solo lo que cae dentro del rango X (las barras empiezan en cero).
   let ya = Infinity, yb = -Infinity;
   const addY = (v) => { if (isFinite(v) && (!ly || v > 0)) { if (v < ya) ya = v; if (v > yb) yb = v; } };
   for (const s of series) {
+    if (s.bw && !ly) addY(0);
     for (const p of s.pts) {
       if (!p || p.x < xlo || p.x > xhi) continue;
       addY(p.y);
       if (p.ey) { addY(p.y - p.ey); addY(p.y + p.ey); }
     }
   }
-  const [ylo, yhi] = rangeFor(g.y, ya, yb, ly, ly ? [0.1, 100] : [-1, 1]);
+  const [ylo, yhi] = rangeFor(g0.y, ya, yb, ly, ly ? [0.1, 100] : [-1, 1]);
 
-  // Márgenes según el tamaño de las etiquetas.
-  const tfs = fs * 0.9, gap = fs * 0.45, tick = fs * 0.45, mtick = fs * 0.25;
-  const top = g.title ? fs * 2.3 : fs * 0.9;
-  const bottom = tfs + gap + (g.xlab ? fs * 1.55 : 0) + fs * 0.55;
+  // Márgenes según el tamaño de las etiquetas y de las marcas que salen hacia fuera.
+  const tfs = fs * g.tickScale, gap = fs * 0.45;
+  const tick = g.tickLen != null ? g.tickLen : fs * 0.45, mtick = tick * 0.55;
+  const outLen = (a) => (a.dir === 'out' || a.dir === 'both' ? tick : 0);
+  const oX = outLen(ax), oY = outLen(ay);
+  const top = g.title ? fs * (1.2 + g.titleScale) : fs * 0.9;
+  const bottom = (ax.labels ? tfs + gap : 0) + oX + (g.xlab ? fs * 1.55 : 0) + fs * 0.55;
   const ph = Math.max(20, H - top - bottom);
-  const yt = axisTicks(ylo, yhi, ly, Math.max(2, Math.round(ph / (fs * 3.2))));
-  const ylw = Math.max(0, ...yt.labels.map((s) => richWidth(ctx, s, tfs)));
-  const left = fs * 0.6 + (g.ylab ? fs * 1.5 : 0) + ylw + gap;
+  const yt = axisTicks(ylo, yhi, ly, Math.max(2, Math.round(ph / (fs * 3.2))), ay);
+  const ylw = ay.labels ? Math.max(0, ...yt.labels.map((s) => richWidth(ctx, s, tfs))) : 0;
+  const left = fs * 0.6 + (g.ylab ? fs * 1.5 : 0) + ylw + (ay.labels ? gap : 0) + oY;
   let right = fs * 1.2;
   let pw = Math.max(20, W - left - right);
   let nx = Math.max(2, Math.round(pw / (fs * 5.5)));
-  let xt = axisTicks(xlo, xhi, lx, nx);
-  // Menos marcas si las etiquetas no caben.
-  for (let guard = 0; guard < 8; guard++) {
+  let xt = axisTicks(xlo, xhi, lx, nx, ax);
+  // Menos marcas si las etiquetas no caben (salvo con paso fijo).
+  for (let guard = 0; guard < 8 && !(ax.step > 0); guard++) {
     const need = xt.labels.reduce((a, s) => a + richWidth(ctx, s, tfs) + fs, 0);
     if (need <= pw || nx <= 2) break;
     nx = Math.max(2, Math.floor(nx * 0.7));
-    xt = axisTicks(xlo, xhi, lx, nx);
+    xt = axisTicks(xlo, xhi, lx, nx, ax);
   }
-  const lastW = xt.labels.length ? richWidth(ctx, xt.labels[xt.labels.length - 1], tfs) : 0;
+  const lastW = ax.labels && xt.labels.length ? richWidth(ctx, xt.labels[xt.labels.length - 1], tfs) : 0;
   right = Math.max(right, lastW / 2 + fs * 0.4);
   pw = Math.max(20, W - left - right);
 
@@ -343,15 +415,19 @@ function drawGraph(ctx, g, W, H) {
   const Y = (v) => top + ph - ((tf(v, ly) - uy0) / (uy1 - uy0)) * ph;
   const xinv = (px) => itf(ux0 + ((px - left) / pw) * (ux1 - ux0), lx);
   const yinv = (py) => itf(uy0 + ((top + ph - py) / ph) * (uy1 - uy0), ly);
+  const inside = (v, lo, hi) => v >= lo - 1e-9 * Math.abs(hi - lo) && v <= hi + 1e-9 * Math.abs(hi - lo);
 
-  // Rejilla.
-  if (g.grid) {
-    ctx.strokeStyle = '#dedede'; ctx.lineWidth = 1; ctx.setLineDash([]);
+  // Rejilla: la menor, más tenue, debajo de la principal.
+  const gridLines = (xs, ys) => {
     ctx.beginPath();
-    for (const v of xt.major) { const x = X(v); ctx.moveTo(x, top); ctx.lineTo(x, top + ph); }
-    for (const v of yt.major) { const y = Y(v); ctx.moveTo(left, y); ctx.lineTo(left + pw, y); }
+    for (const v of xs) if (inside(v, xlo, xhi)) { const x = X(v); ctx.moveTo(x, top); ctx.lineTo(x, top + ph); }
+    for (const v of ys) if (inside(v, ylo, yhi)) { const y = Y(v); ctx.moveTo(left, y); ctx.lineTo(left + pw, y); }
     ctx.stroke();
-  }
+  };
+  ctx.setLineDash([]);
+  ctx.strokeStyle = g.gridColor;
+  if (g.gridMinor) { ctx.lineWidth = 0.7; ctx.globalAlpha = 0.5; gridLines(xt.minor, yt.minor); ctx.globalAlpha = 1; }
+  if (g.grid) { ctx.lineWidth = 1; gridLines(xt.major, yt.major); }
 
   // Curvas, recortadas al área del gráfico.
   ctx.save();
@@ -361,7 +437,7 @@ function drawGraph(ctx, g, W, H) {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   for (const s of series) {
-    const c = s.c;
+    const c = s.c, f = s.f;
     for (const p of s.pts) if (p) { p.px = X(p.x); p.py = Y(p.y); }
     const ok = (p) => p && isFinite(p.px) && isFinite(p.py);
     if (c.kind === 'func') {
@@ -377,9 +453,26 @@ function drawGraph(ctx, g, W, H) {
       continue;
     }
     const pts = s.pts.filter(ok);
+    if (s.bw) {
+      const y0 = ly ? top + ph + 10 : Y(0);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      for (const p of pts) {
+        const xa1 = X(p.x - s.bw / 2), xb1 = X(p.x + s.bw / 2);
+        ctx.rect(Math.min(xa1, xb1), Math.min(y0, p.py), Math.abs(xb1 - xa1), Math.abs(p.py - y0));
+      }
+      ctx.globalAlpha = clamp(f.alpha, 0, 1);
+      ctx.fillStyle = f.fillColor || c.color;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      const edge = f.edge != null ? f.edge : 1;
+      if (edge > 0) { ctx.strokeStyle = c.color; ctx.lineWidth = edge; ctx.lineJoin = 'miter'; ctx.stroke(); ctx.lineJoin = 'round'; }
+    }
     if (pts.some((p) => p.ey || p.ex)) {
-      ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(0.8, Math.min(c.width, 1.5)); ctx.setLineDash([]);
-      const cap = Math.max(2, c.size * 0.4);
+      ctx.strokeStyle = f.errColor || c.color;
+      ctx.lineWidth = f.errWidth != null ? f.errWidth : Math.max(0.8, Math.min(c.width, 1.5));
+      ctx.setLineDash([]);
+      const cap = f.cap != null ? f.cap : Math.max(2, c.size * 0.4);
       ctx.beginPath();
       for (const p of pts) {
         if (p.ey) {
@@ -387,8 +480,10 @@ function drawGraph(ctx, g, W, H) {
           if (isFinite(y2)) {
             const ya1 = isFinite(y1) ? y1 : top + ph + 10;
             ctx.moveTo(p.px, ya1); ctx.lineTo(p.px, y2);
-            ctx.moveTo(p.px - cap, y2); ctx.lineTo(p.px + cap, y2);
-            if (isFinite(y1)) { ctx.moveTo(p.px - cap, y1); ctx.lineTo(p.px + cap, y1); }
+            if (cap > 0) {
+              ctx.moveTo(p.px - cap, y2); ctx.lineTo(p.px + cap, y2);
+              if (isFinite(y1)) { ctx.moveTo(p.px - cap, y1); ctx.lineTo(p.px + cap, y1); }
+            }
           }
         }
         if (p.ex) {
@@ -396,55 +491,67 @@ function drawGraph(ctx, g, W, H) {
           if (isFinite(x2)) {
             const xa1 = isFinite(x1) ? x1 : left - 10;
             ctx.moveTo(xa1, p.py); ctx.lineTo(x2, p.py);
-            ctx.moveTo(x2, p.py - cap); ctx.lineTo(x2, p.py + cap);
-            if (isFinite(x1)) { ctx.moveTo(x1, p.py - cap); ctx.lineTo(x1, p.py + cap); }
+            if (cap > 0) {
+              ctx.moveTo(x2, p.py - cap); ctx.lineTo(x2, p.py + cap);
+              if (isFinite(x1)) { ctx.moveTo(x1, p.py - cap); ctx.lineTo(x1, p.py + cap); }
+            }
           }
         }
       }
       ctx.stroke();
     }
-    if (c.style !== 'scatter' && pts.length > 1) {
+    if ((c.style === 'line' || c.style === 'both') && pts.length > 1) {
       ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c));
       ctx.beginPath();
-      pts.forEach((p, i) => (i ? ctx.lineTo(p.px, p.py) : ctx.moveTo(p.px, p.py)));
+      tracePath(ctx, pts, f.connect);
       ctx.stroke();
     }
-    if (c.style !== 'line') drawSymbols(ctx, c, pts);
+    if (c.style === 'scatter' || c.style === 'both') drawSymbols(ctx, f, pts);
   }
   ctx.restore();
 
-  // Marco y marcas hacia dentro en los cuatro lados.
-  const lw = Math.max(1, fs / 14);
+  // Marcas (hacia dentro, fuera, a ambos lados o ninguna) y marco cerrado o solo dos ejes.
+  const lw = g.lw != null ? g.lw : Math.max(1, fs / 14);
+  const box = g.frame === 'box';
+  const span = (dir, len) => (dir === 'in' ? [0, len] : dir === 'out' ? [0, -len] : dir === 'both' ? [-len, len] : null);
   ctx.setLineDash([]);
   ctx.strokeStyle = ink;
   ctx.lineWidth = lw;
   ctx.lineCap = 'butt';
   ctx.beginPath();
-  const inside = (v, lo, hi) => v >= lo - 1e-9 * Math.abs(hi - lo) && v <= hi + 1e-9 * Math.abs(hi - lo);
   for (const [vals, len] of [[xt.major, tick], [xt.minor, mtick]]) {
+    const sp = span(ax.dir, len);
+    if (!sp) break;
     for (const v of vals) {
       if (!inside(v, xlo, xhi)) continue;
       const x = X(v);
-      ctx.moveTo(x, top + ph); ctx.lineTo(x, top + ph - len);
-      ctx.moveTo(x, top); ctx.lineTo(x, top + len);
+      ctx.moveTo(x, top + ph - sp[0]); ctx.lineTo(x, top + ph - sp[1]);
+      if (box && ax.mirror) { ctx.moveTo(x, top + sp[0]); ctx.lineTo(x, top + sp[1]); }
     }
   }
   for (const [vals, len] of [[yt.major, tick], [yt.minor, mtick]]) {
+    const sp = span(ay.dir, len);
+    if (!sp) break;
     for (const v of vals) {
       if (!inside(v, ylo, yhi)) continue;
       const y = Y(v);
-      ctx.moveTo(left, y); ctx.lineTo(left + len, y);
-      ctx.moveTo(left + pw, y); ctx.lineTo(left + pw - len, y);
+      ctx.moveTo(left + sp[0], y); ctx.lineTo(left + sp[1], y);
+      if (box && ay.mirror) { ctx.moveTo(left + pw - sp[0], y); ctx.lineTo(left + pw - sp[1], y); }
     }
   }
   ctx.stroke();
   ctx.lineJoin = 'miter';
-  ctx.strokeRect(left, top, pw, ph);
+  if (box) ctx.strokeRect(left, top, pw, ph);
+  else if (g.frame === 'axes') {
+    ctx.beginPath();
+    ctx.moveTo(left, top); ctx.lineTo(left, top + ph); ctx.lineTo(left + pw, top + ph);
+    ctx.stroke();
+  }
 
   // Etiquetas de las marcas, títulos de los ejes y título.
   ctx.fillStyle = ink;
-  xt.major.forEach((v, i) => { if (inside(v, xlo, xhi)) drawRich(ctx, xt.labels[i], X(v), top + ph + gap, tfs, { align: 'center', vAlign: 'top' }); });
-  yt.major.forEach((v, i) => { if (inside(v, ylo, yhi)) drawRich(ctx, yt.labels[i], left - gap, Y(v), tfs, { align: 'right', vAlign: 'middle' }); });
+  if (ax.labels) xt.major.forEach((v, i) => { if (inside(v, xlo, xhi)) drawRich(ctx, xt.labels[i], X(v), top + ph + gap + oX, tfs, { align: 'center', vAlign: 'top' }); });
+  if (ay.labels) yt.major.forEach((v, i) => { if (inside(v, ylo, yhi)) drawRich(ctx, yt.labels[i], left - gap - oY, Y(v), tfs, { align: 'right', vAlign: 'middle' }); });
   if (g.xlab) drawRich(ctx, g.xlab, left + pw / 2, H - fs * 0.45, fs, { align: 'center', vAlign: 'bottom' });
   if (g.ylab) {
     ctx.save();
@@ -453,35 +560,47 @@ function drawGraph(ctx, g, W, H) {
     drawRich(ctx, g.ylab, 0, 0, fs, { align: 'center', vAlign: 'middle' });
     ctx.restore();
   }
-  if (g.title) drawRich(ctx, g.title, left + pw / 2, fs * 0.55, fs * 1.1, { align: 'center', vAlign: 'top', weight: 700 });
+  if (g.title) drawRich(ctx, g.title, left + pw / 2, fs * 0.55, fs * g.titleScale, { align: 'center', vAlign: 'top', weight: 700 });
 
   drawLegend(ctx, g, series, { left, top, pw, ph }, fs);
   ctx.restore();
+  fontCur = FONT;
   return { left, top, pw, ph, X, Y, xinv, yinv, xr: [xlo, xhi], yr: [ylo, yhi], lx, ly, series };
 }
 
 function drawLegend(ctx, g, series, box, fs) {
   const pos = g.legend === 'auto' ? (series.length >= 2 ? 'tr' : 'off') : g.legend;
   if (pos === 'off' || !series.length) return;
-  const lfs = fs * 0.8, row = lfs * 1.5, sample = lfs * 2.4, pad = lfs * 0.6, m = fs * 0.6;
+  const lfs = fs * g.legendScale, row = lfs * 1.5, sample = lfs * 2.4, pad = lfs * 0.6, m = fs * 0.6;
   const labels = series.map((s) => curveLabel(g, s.c));
   const tw = Math.max(...labels.map((l) => richWidth(ctx, l, lfs)));
   const bw = pad * 2 + sample + lfs * 0.6 + tw, bh = pad * 2 + row * series.length - (row - lfs * 1.2);
   const bx = pos[1] === 'r' ? box.left + box.pw - m - bw : box.left + m;
   const by = pos[0] === 't' ? box.top + m : box.top + box.ph - m - bh;
   ctx.setLineDash([]);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeStyle = '#8a8a8a';
-  ctx.lineWidth = Math.max(0.8, fs / 22);
-  ctx.strokeRect(bx, by, bw, bh);
+  if (g.legendFrame) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#8a8a8a';
+    ctx.lineWidth = Math.max(0.8, fs / 22);
+    ctx.strokeRect(bx, by, bw, bh);
+  }
   series.forEach((s, i) => {
-    const c = s.c, cy = by + pad + lfs * 0.6 + row * i, x0 = bx + pad;
-    if (c.kind === 'func' || c.style !== 'scatter') {
-      ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c)); ctx.lineCap = 'butt';
-      ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x0 + sample, cy); ctx.stroke();
+    const c = s.c, f = s.f, cy = by + pad + lfs * 0.6 + row * i, x0 = bx + pad;
+    if (s.bw) {
+      const hh = lfs * 0.8;
+      ctx.globalAlpha = clamp(f.alpha, 0, 1);
+      ctx.fillStyle = f.fillColor || c.color;
+      ctx.fillRect(x0 + sample * 0.15, cy - hh / 2, sample * 0.7, hh);
+      ctx.globalAlpha = 1;
+      if ((f.edge ?? 1) > 0) { ctx.strokeStyle = c.color; ctx.lineWidth = f.edge ?? 1; ctx.strokeRect(x0 + sample * 0.15, cy - hh / 2, sample * 0.7, hh); }
+    } else {
+      if (c.kind === 'func' || c.style === 'line' || c.style === 'both') {
+        ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c)); ctx.lineCap = 'butt';
+        ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x0 + sample, cy); ctx.stroke();
+      }
+      if (c.kind === 'data' && c.style !== 'line') drawSymbols(ctx, { ...f, size: Math.min(c.size, lfs * 0.9) }, [{ px: x0 + sample / 2, py: cy }]);
     }
-    if (c.kind === 'data' && c.style !== 'line') drawSymbols(ctx, { ...c, size: Math.min(c.size, lfs * 0.9) }, [{ px: x0 + sample / 2, py: cy }]);
     ctx.fillStyle = '#111';
     drawRich(ctx, labels[i], x0 + sample + lfs * 0.6, cy, lfs, { vAlign: 'middle' });
   });
@@ -514,6 +633,7 @@ class SvgCtx {
   beginPath() { this.d = ''; }
   moveTo(x, y) { this.d += 'M' + this.pt(x, y); }
   lineTo(x, y) { this.d += 'L' + this.pt(x, y); }
+  bezierCurveTo(a, b, c, d, x, y) { this.d += 'C' + this.pt(a, b) + ' ' + this.pt(c, d) + ' ' + this.pt(x, y); }
   closePath() { this.d += 'Z'; }
   rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
   arc(x, y, r) { // solo círculos completos
@@ -534,10 +654,11 @@ class SvgCtx {
   fillText(s, x, y) {
     const size = +(/([\d.]+)px/.exec(this.font) || [0, 10])[1];
     const weight = (/^(\d{3}|bold)/.exec(this.font) || [0, '400'])[1];
+    const family = this.font.replace(/^\S+\s+[\d.]+px\s+/, '');
     const m = this.m;
     const plain = m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1;
     const pos = plain ? ` x="${r2(x + m[4])}" y="${r2(y + m[5])}"` : ` x="${r2(x)}" y="${r2(y)}" transform="matrix(${m.map((v) => +v.toFixed(6)).join(' ')})"`;
-    this.out.push(`<text${pos} font-size="${r2(size)}"${weight !== '400' ? ` font-weight="${weight}"` : ''} fill="${this.fillStyle}"${this.extra()}>${esc(s.replace(/ /g, ' '))}</text>`);
+    this.out.push(`<text${pos} font-size="${r2(size)}"${family !== FONT ? ` font-family="${esc(family)}"` : ''}${weight !== '400' ? ` font-weight="${weight}"` : ''} fill="${this.fillStyle}"${this.extra()}>${esc(s.replace(/ /g, ' '))}</text>`);
   }
   toString() {
     return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${this.W}" height="${this.H}" viewBox="0 0 ${this.W} ${this.H}" font-family="${FONT}" xml:space="preserve">\n<defs>${this.defs.join('')}</defs>\n${this.out.join('\n')}\n</svg>\n`;
@@ -668,7 +789,8 @@ gview.addEventListener('pointerup', () => {
   graphRender();
 });
 gview.addEventListener('pointerleave', () => { $('gtip').hidden = true; $('cursorReadout').textContent = ''; });
-gview.addEventListener('dblclick', () => autoscale());
+// Doble clic dentro del gráfico: autoescala; en los ejes o los márgenes: formato de la gráfica.
+gview.addEventListener('dblclick', (e) => { if (gGeom && !inPlot(toPage(e), gGeom.G)) openGraphFormat(); else autoscale(); });
 gview.addEventListener('wheel', (e) => {
   if (!gGeom) return;
   const p = toPage(e), G = gGeom.G;
@@ -724,7 +846,7 @@ function autoscale() {
 
 /* ---------- panel de curvas ---------- */
 
-const STYLE_TAG = { scatter: '•', line: '—', both: '•—' };
+const STYLE_TAG = { scatter: '•', line: '—', both: '•—', bars: '▮' };
 function syncCurvesPanel() {
   const g = activeGraph();
   if (!g) return;
@@ -757,7 +879,7 @@ function curvePropsHtml(g, c) {
     h += field('xc', 'X', `<select data-f="xc">${colOpts(c.xc, t('row_number'))}</select>`);
     h += field('ye', t('c_yerr'), `<select data-f="ye">${colOpts(c.ye, t('none'))}</select>`);
     h += field('xe', t('c_xerr'), `<select data-f="xe">${colOpts(c.xe, t('none'))}</select>`);
-    h += field('style', t('c_style'), `<select data-f="style">${['scatter', 'line', 'both'].map((s) => opt(s, t('st_' + s), c.style)).join('')}</select>`);
+    h += field('style', t('c_style'), `<select data-f="style">${['scatter', 'line', 'both', 'bars'].map((s) => opt(s, t('st_' + s), c.style)).join('')}</select>`);
     h += field('symbol', t('c_symbol'), `<select data-f="symbol">${SYMBOLS.map((s) => opt(s, t('sym_' + s), c.symbol)).join('')}</select>`);
     h += field('size', t('c_size'), num('size', c.size, 'min="1" max="60" step="1"'));
     h += `<label class="chk inline"><input type="checkbox" data-f="fill"${c.fill !== false ? ' checked' : ''}> <span>${esc(t('c_fill'))}</span></label>`;
