@@ -235,7 +235,7 @@ slotSide.addEventListener('contextmenu', (e) => {
   if (!sideActivate(e)) return;
   if (activeGraph()) { openCtxMenu(e.clientX, e.clientY); return; }
   const el = document.elementFromPoint(e.clientX, e.clientY);
-  if (el && gridEl.contains(el)) el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
+  if (el && gridWrap.contains(el)) el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
 });
 // La rueda sobre la gráfica sin foco la activa; los siguientes giros ya hacen zoom en ella.
 gview2.addEventListener('wheel', (e) => { e.preventDefault(); sideActivate(e); }, { passive: false });

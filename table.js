@@ -295,6 +295,13 @@ gridEl.addEventListener('contextmenu', (e) => {
   if (th.dataset.c != null) { e.preventDefault(); openColMenu(tb, +th.dataset.c, e.clientX, e.clientY); }
   else if (tr.dataset.r != null) { e.preventDefault(); openRowMenu(tb, +tr.dataset.r, e.clientX, e.clientY); }
 });
+// Clic derecho en la zona en blanco, fuera de las celdas: columna nueva al final, tabla o gráfica nuevas.
+gridWrap.addEventListener('contextmenu', (e) => {
+  if (!activeTable() || e.target !== gridWrap || e.offsetX >= gridWrap.clientWidth || e.offsetY >= gridWrap.clientHeight) return;
+  e.preventDefault();
+  commitEdit(false);
+  showCtxMenu(gridItem('blankcol', t('bc_col')) + '<hr>' + gridItem('blanktable', t('bc_table')) + gridItem('blankgraph', t('bc_graph')), e.clientX, e.clientY);
+});
 const gridItem = (ctx, label, c = '', danger = false) => `<button role="menuitem" data-ctx="${ctx}" data-c="${c}"${danger ? ' class="danger"' : ''}>${esc(label)}</button>`;
 function openColMenu(tb, c, x, y) {
   commitEdit(false);
@@ -327,6 +334,9 @@ function gridCtxCommand(cmd, c) {
   else if (cmd === 'rowabove') insertRows(tb, ra, k, true);
   else if (cmd === 'rowbelow') insertRows(tb, rb + 1, k, true);
   else if (cmd === 'rowdel') deleteRows(tb);
+  else if (cmd === 'blankcol') editHeader(insertCol(tb, tb.cols.length), false);
+  else if (cmd === 'blanktable') $('btnNewTable').click();
+  else if (cmd === 'blankgraph') $('btnNewGraph').click();
 }
 
 // Doble clic en la cabecera: se edita ahí mismo el nombre (o la unidad, si se pulsa en ella).

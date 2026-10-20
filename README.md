@@ -195,6 +195,7 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | Drag a column header | Move the column, or the selected block of columns (`Esc` cancels; `Shift`+drag selects a range) |
 | Right-click a column header | Rename, new column to the left / right, delete |
 | Right-click a row number | New row above / below, delete (as many rows as are selected) |
+| Right-click the blank area of a table | New column at the end, new table, new graph |
 | Wheel, drag, double-click | Zoom, pan and autoscale a graph |
 | Double-click on the axes or margins | Graph format |
 | Right-click on a graph | Analysis and Graph menus, open or save the image |
