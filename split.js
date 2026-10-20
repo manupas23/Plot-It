@@ -52,13 +52,45 @@ function splitLayout() {
   if (!on) {
     slotMain.style.order = slotMain.style.flexGrow = slotSide.style.order = slotSide.style.flexGrow = '';
     sideShown = null;
+    focusShown = null;
     return;
   }
+  const moved = focusShown !== null && focusShown !== S.focus;
+  focusShown = S.focus;
+  if (moved) fadeOutAddButtons();
   const mainFirst = S.focus === 0, f = mainFirst ? S.ratio : 1 - S.ratio;
   slotMain.style.order = mainFirst ? 0 : 2;
   slotSide.style.order = mainFirst ? 2 : 0;
   slotMain.style.flexGrow = f;
   slotSide.style.flexGrow = 1 - f;
+  if (moved && !reducedMotion()) {
+    for (const b of addButtons()) b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
+  }
+}
+let focusShown = null;
+
+// Los botones de añadir van con la ventana activa: al cambiar de ventana se desvanecen donde
+// estaban (una copia, porque los de verdad ya se han ido) y aparecen en la otra.
+const addButtons = () => ['btnNewTable', 'btnNewGraph', 'btnSplit'].map($);
+function fadeOutAddButtons() {
+  document.querySelectorAll('.add-ghost').forEach((g) => g.remove());
+  if (reducedMotion()) return;
+  for (const b of addButtons()) {
+    const r = b.getBoundingClientRect();
+    if (!r.width) continue;
+    const g = b.cloneNode(true);
+    g.removeAttribute('id');
+    g.classList.add('add-ghost');
+    g.querySelectorAll('svg').forEach((s, k) => {
+      const orig = b.querySelectorAll('svg')[k], sr = orig.getBoundingClientRect();
+      s.style.display = getComputedStyle(orig).display;
+      s.style.width = `${sr.width}px`;
+      s.style.height = `${sr.height}px`;
+    });
+    Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    document.body.appendChild(g);
+    g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-in' }).onfinish = () => g.remove();
+  }
 }
 
 // La otra ventana: se dibuja en el siguiente fotograma, una vez por muchos cambios seguidos.

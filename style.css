@@ -137,6 +137,7 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 #btnSplit svg { width: 15px; height: 15px; display: block; }
 #btnSplitClose { padding: 4px 9px; font-size: 14px; line-height: 20px; }
 #btnSplit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.add-ghost { position: fixed; margin: 0; box-sizing: border-box; pointer-events: none; z-index: 5; }
 /* Pestaña activa de la ventana sin foco: marcada, pero más apagada. */
 .slot.side .tab.active { color: var(--text-secondary); }
 .slot.side .tab.active .ti { color: var(--text-muted); }
