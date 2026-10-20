@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlotIt</title>
+<meta name="description" content="Data analysis and plotting in the browser: tables with formulas, publication-quality graphs and nonlinear curve fitting.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M5 4V27H29' fill='none' stroke='%233987e5' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/><path d='M8 24Q17 22 27 6' fill='none' stroke='%23e8763f' stroke-width='2.6' stroke-linecap='round'/><circle cx='11' cy='20.6' r='2.4' fill='%233987e5'/><circle cx='16.6' cy='19.9' r='2.4' fill='%233987e5'/><circle cx='21' cy='13.4' r='2.4' fill='%233987e5'/><circle cx='25.6' cy='10' r='2.4' fill='%233987e5'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M5 4V27H29" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/><path d="M8 24Q17 22 27 6" fill="none" stroke="#e8763f" stroke-width="2.2" stroke-linecap="round"/><circle cx="11" cy="20.6" r="2.2" fill="currentColor"/><circle cx="16.6" cy="19.9" r="2.2" fill="currentColor"/><circle cx="21" cy="13.4" r="2.2" fill="currentColor"/><circle cx="25.6" cy="10" r="2.2" fill="currentColor"/></svg>PlotIt</div>
+  <div class="actions">
+    <label class="btn primary" data-i18n-title="import_t"><span data-i18n="import">Import data</span><input id="fileData" type="file" multiple hidden></label>
+    <label class="btn"><span data-i18n="open_project">Open project</span><input id="fileProject" type="file" accept=".json,application/json" hidden></label>
+    <button class="btn" id="btnSaveProject" data-i18n="save_project" data-i18n-title="save_project_t">Save project</button>
+    <button class="btn icon" id="btnUndo" data-i18n-title="undo_t" disabled>↶</button>
+    <button class="btn icon" id="btnRedo" data-i18n-title="redo_t" disabled>↷</button>
+    <button class="btn icon" id="btnHelp" data-i18n-title="help_t">?</button>
+    <div class="seg lang" role="group" data-i18n-aria="lang_t" data-i18n-title="lang_t">
+      <button class="seg-btn lang-btn" data-lang="es">ES</button>
+      <button class="seg-btn lang-btn" data-lang="en">EN</button>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="work" id="work">
+    <nav class="tabs">
+      <div class="tablist" id="tabs" role="tablist"></div>
+      <button class="btn small" id="btnNewTable" data-i18n="new_table">+ Table</button>
+      <button class="btn small" id="btnNewGraph" data-i18n="new_graph">+ Graph</button>
+    </nav>
+
+    <div class="toolbar" id="tableBar">
+      <span class="readout" id="cellReadout"></span>
+      <span class="spacer"></span>
+      <span class="readout muted" id="selReadout"></span>
+    </div>
+    <div class="toolbar" id="graphBar" hidden>
+      <span class="readout" id="cursorReadout"></span>
+      <span class="spacer"></span>
+      <button class="btn small" id="btnAutoscale" data-i18n="autoscale" data-i18n-title="autoscale_t">Autoscale</button>
+      <button class="btn small" id="btnPng" data-i18n="export_png">PNG</button>
+      <button class="btn small" id="btnSvg" data-i18n="export_svg">SVG</button>
+    </div>
+
+    <div class="pane" id="tablePane">
+      <div class="gridwrap" id="gridWrap" tabindex="0">
+        <table class="grid" id="grid"><colgroup></colgroup><thead></thead><tbody></tbody></table>
+        <input id="cellEdit" class="celledit" type="text" autocomplete="off" spellcheck="false" hidden>
+      </div>
+      <div class="empty" id="emptyHint" hidden>
+        <p class="big" data-i18n="empty_big">Type or paste your data</p>
+        <p data-i18n-html="empty_html"></p>
+        <button class="btn small" id="btnExample" data-i18n="example">Load an example</button>
+      </div>
+    </div>
+    <div class="pane" id="graphPane" hidden>
+      <canvas id="gview"></canvas>
+      <div class="tip" id="gtip" hidden></div>
+    </div>
+    <div class="drop" id="dropHint" hidden>
+      <div>
+        <p class="big" data-i18n="drop_big">Drop files here</p>
+        <p data-i18n="drop_text">Data files (CSV, TXT, DAT, LAMMPS log…) become tables; a .plotit.json file opens as a project.</p>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side" id="side">
+    <!-- Paneles de tabla -->
+    <details class="panel for-table" data-p="column" open>
+      <summary data-i18n="p_column">Column</summary>
+      <div class="grid2">
+        <label><span data-i18n="col_name">Name</span><input type="text" id="colName" maxlength="40"></label>
+        <label><span data-i18n="col_role">Plot role</span>
+          <select id="colRole">
+            <option value="X" data-i18n="role_X">X</option>
+            <option value="Y" data-i18n="role_Y">Y</option>
+            <option value="xErr" data-i18n="role_xErr">X error</option>
+            <option value="yErr" data-i18n="role_yErr">Y error</option>
+            <option value="none" data-i18n="role_none">None</option>
+          </select>
+        </label>
+        <label class="wide"><span data-i18n="col_unit">Unit or comment</span><input type="text" id="colUnit" maxlength="60" data-i18n-placeholder="col_unit_ph"></label>
+      </div>
+      <div class="sub">
+        <div class="subhead" data-i18n="formula_head">Set values</div>
+        <textarea id="colFormula" class="mono" rows="2" spellcheck="false" data-i18n-placeholder="formula_ph"></textarea>
+        <div class="formula-row">
+          <label><span data-i18n="rows_from">Rows</span><input type="number" id="fRow0" min="1" step="1"></label>
+          <label><span data-i18n="rows_to">to</span><input type="number" id="fRow1" min="1" step="1"></label>
+          <button class="btn primary small" id="btnApplyFormula" data-i18n="apply">Apply</button>
+        </div>
+        <p class="err" id="formulaErr" hidden></p>
+        <div class="chips" id="colChips"></div>
+        <p class="hint" data-i18n-html="hint_formula_html"></p>
+      </div>
+      <div class="sub">
+        <div class="subhead" data-i18n="ops_head">Operations</div>
+        <div class="btnrow">
+          <button class="btn small" id="btnSortAsc" data-i18n="sort_asc" data-i18n-title="sort_t">Sort ↑</button>
+          <button class="btn small" id="btnSortDesc" data-i18n="sort_desc" data-i18n-title="sort_t">Sort ↓</button>
+          <button class="btn small" id="btnNormalize" data-i18n="normalize" data-i18n-title="normalize_t">Normalize</button>
+          <button class="btn small" id="btnDeriv" data-i18n="deriv" data-i18n-title="deriv_t">d/dX</button>
+          <button class="btn small" id="btnInteg" data-i18n="integ" data-i18n-title="integ_t">∫ dX</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel for-table" data-p="plotnew" open>
+      <summary data-i18n="p_plotnew">Plot</summary>
+      <div class="seg wide" role="group" id="plotStyle">
+        <button class="seg-btn active" data-style="scatter" data-i18n="st_scatter">Scatter</button>
+        <button class="seg-btn" data-style="line" data-i18n="st_line">Line</button>
+        <button class="seg-btn" data-style="both" data-i18n="st_both">Line + symbols</button>
+      </div>
+      <div class="plotdest">
+        <select id="plotDest" data-i18n-aria="plot_dest"></select>
+        <button class="btn primary small" id="btnPlot" data-i18n="plot_btn">Plot</button>
+      </div>
+      <p class="hint" data-i18n-html="hint_plot_html"></p>
+    </details>
+
+    <details class="panel for-table" data-p="stats" open>
+      <summary data-i18n="p_stats">Statistics</summary>
+      <div class="tablewrap small"><table class="stats" id="statsOut"></table></div>
+      <p class="hint" data-i18n="hint_stats"></p>
+    </details>
+
+    <details class="panel for-table" data-p="table">
+      <summary data-i18n="p_table">Table</summary>
+      <div class="grid2">
+        <label><span data-i18n="tbl_name">Name</span><input type="text" id="tblName" maxlength="40"></label>
+        <label><span data-i18n="tbl_rows">Rows</span><input type="number" id="tblRows" min="1" max="1000000" step="1"></label>
+      </div>
+      <div class="btnrow">
+        <button class="btn small" id="btnAddCol" data-i18n="add_col">+ Column</button>
+        <button class="btn small" id="btnInsRows" data-i18n="ins_rows" data-i18n-title="ins_rows_t">Insert rows</button>
+        <button class="btn small danger" id="btnDelRows" data-i18n="del_rows">Delete rows</button>
+        <button class="btn small danger" id="btnDelCols" data-i18n="del_cols">Delete columns</button>
+        <button class="btn small" id="btnCsv" data-i18n="export_csv">Export CSV</button>
+      </div>
+    </details>
+
+    <!-- Paneles de gráfica -->
+    <details class="panel for-graph" data-p="curves" open>
+      <summary data-i18n="p_curves">Curves</summary>
+      <div id="curveList" class="curvelist"></div>
+      <div id="curveProps"></div>
+      <div class="sub">
+        <div class="subhead" data-i18n="add_head">Add</div>
+        <div class="addrow">
+          <select id="addTable" data-i18n-aria="add_table"></select>
+          <select id="addX" data-i18n-aria="add_x"></select>
+          <select id="addY" data-i18n-aria="add_y"></select>
+          <button class="btn small" id="btnAddData" data-i18n="add_data">+ Data</button>
+        </div>
+        <div class="addrow">
+          <span class="mono muted">f(x) =</span>
+          <input type="text" id="addFunc" class="mono" spellcheck="false" placeholder="sin(x)/x">
+          <button class="btn small" id="btnAddFunc" data-i18n="add_func">+ Function</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel for-graph" data-p="fit" open>
+      <summary data-i18n="p_fit">Fit</summary>
+      <div class="grid2">
+        <label><span data-i18n="fit_curve">Data</span><select id="fitCurve"></select></label>
+        <label><span data-i18n="fit_model">Model</span>
+          <select id="fitModel">
+            <option value="linear" data-i18n="m_linear">Linear</option>
+            <option value="poly" data-i18n="m_poly">Polynomial</option>
+            <option value="exp_decay" data-i18n="m_exp_decay">Exponential decay</option>
+            <option value="exp_growth" data-i18n="m_exp_growth">Exponential growth</option>
+            <option value="gauss" data-i18n="m_gauss">Gaussian</option>
+            <option value="lorentz" data-i18n="m_lorentz">Lorentzian</option>
+            <option value="boltzmann" data-i18n="m_boltzmann">Sigmoid (Boltzmann)</option>
+            <option value="power" data-i18n="m_power">Power law</option>
+            <option value="sine" data-i18n="m_sine">Sine</option>
+            <option value="damped" data-i18n="m_damped">Damped oscillation</option>
+            <option value="custom" data-i18n="m_custom">Custom…</option>
+          </select>
+        </label>
+      </div>
+      <label class="exprrow"><span class="mono muted">y =</span><input type="text" id="fitExpr" class="mono" spellcheck="false"></label>
+      <div class="grid2" id="fitDegWrap"><label><span data-i18n="fit_deg">Degree</span><input type="number" id="fitDeg" min="1" max="9" step="1" value="2"></label></div>
+      <p class="err" id="fitExprErr" hidden></p>
+      <table class="params" id="fitParams"></table>
+      <div class="grid2">
+        <label><span data-i18n="fit_xmin">From x</span><input type="number" id="fitXmin" step="any" data-i18n-placeholder="all"></label>
+        <label><span data-i18n="fit_xmax">To x</span><input type="number" id="fitXmax" step="any" data-i18n-placeholder="all"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="fitWeight" checked> <span data-i18n="fit_weight">Weight with Y errors (1/σ²)</span></label>
+      <div class="btnrow">
+        <button class="btn small" id="btnGuess" data-i18n="fit_guess" data-i18n-title="fit_guess_t">Guess</button>
+        <button class="btn primary small" id="btnFit" data-i18n="fit_run">Fit</button>
+      </div>
+      <pre class="fitout" id="fitOut"></pre>
+      <div class="btnrow" id="fitActions" hidden>
+        <button class="btn small" id="btnFitCopy" data-i18n="copy">Copy</button>
+        <button class="btn small" id="btnFitTable" data-i18n="fit_table" data-i18n-title="fit_table_t">Residuals → table</button>
+      </div>
+      <p class="hint" data-i18n-html="hint_fit_html"></p>
+    </details>
+
+    <details class="panel for-graph" data-p="axes">
+      <summary data-i18n="p_axes">Axes and layout</summary>
+      <div class="grid2">
+        <label class="wide"><span data-i18n="g_title">Title</span><input type="text" id="gTitle"></label>
+        <label class="wide"><span data-i18n="g_xlab">X axis label</span><input type="text" id="gXlab"></label>
+        <label class="wide"><span data-i18n="g_ylab">Y axis label</span><input type="text" id="gYlab"></label>
+        <label><span data-i18n="g_xmin">X min</span><input type="number" id="gXmin" step="any" data-i18n-placeholder="auto"></label>
+        <label><span data-i18n="g_xmax">X max</span><input type="number" id="gXmax" step="any" data-i18n-placeholder="auto"></label>
+        <label><span data-i18n="g_ymin">Y min</span><input type="number" id="gYmin" step="any" data-i18n-placeholder="auto"></label>
+        <label><span data-i18n="g_ymax">Y max</span><input type="number" id="gYmax" step="any" data-i18n-placeholder="auto"></label>
+        <label class="chk inline"><input type="checkbox" id="gXlog"> <span data-i18n="g_xlog">Log X</span></label>
+        <label class="chk inline"><input type="checkbox" id="gYlog"> <span data-i18n="g_ylog">Log Y</span></label>
+        <label class="chk inline"><input type="checkbox" id="gGrid"> <span data-i18n="g_grid">Grid</span></label>
+        <label><span data-i18n="g_legend">Legend</span>
+          <select id="gLegend">
+            <option value="auto" data-i18n="lg_auto">Automatic</option>
+            <option value="tr" data-i18n="lg_tr">Top right</option>
+            <option value="tl" data-i18n="lg_tl">Top left</option>
+            <option value="br" data-i18n="lg_br">Bottom right</option>
+            <option value="bl" data-i18n="lg_bl">Bottom left</option>
+            <option value="off" data-i18n="lg_off">Hidden</option>
+          </select>
+        </label>
+        <label><span data-i18n="g_w">Width (px)</span><input type="number" id="gW" min="200" max="4000" step="10"></label>
+        <label><span data-i18n="g_h">Height (px)</span><input type="number" id="gH" min="150" max="4000" step="10"></label>
+        <label><span data-i18n="g_font">Font size</span><input type="number" id="gFont" min="6" max="60" step="1"></label>
+        <label><span data-i18n="g_pngscale">PNG scale</span>
+          <select id="gPngScale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option><option value="4">4×</option></select>
+        </label>
+      </div>
+      <p class="hint" data-i18n-html="hint_axes_html"></p>
+    </details>
+
+    <details class="panel" data-p="log">
+      <summary data-i18n="p_log">Results log</summary>
+      <pre class="log" id="logOut"></pre>
+      <div class="btnrow">
+        <button class="btn small" id="btnLogCopy" data-i18n="copy">Copy</button>
+        <button class="btn small danger" id="btnLogClear" data-i18n="clear">Clear</button>
+      </div>
+    </details>
+  </aside>
+</main>
+
+<dialog id="help">
+  <h2 data-i18n="help_title">How to use it</h2>
+  <div data-i18n-html="help_html"></div>
+  <form method="dialog"><button class="btn primary" data-i18n="help_ok">Got it</button></form>
+</dialog>
+
+<dialog id="ask" class="ask" aria-labelledby="askTitle">
+  <h2 id="askTitle"></h2>
+  <p id="askText"></p>
+  <p id="askDetail" class="muted"></p>
+  <div class="ask-actions" id="askActions"></div>
+</dialog>
+
+<div class="toast" id="toast" hidden></div>
+<script src="i18n.js"></script>
+<script src="expr.js"></script>
+<script src="fit.js"></script>
+<script src="core.js"></script>
+<script src="table.js"></script>
+<script src="graph.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

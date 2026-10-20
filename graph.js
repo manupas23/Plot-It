@@ -1,0 +1,1161 @@
+'use strict';
+// graph.js: dibujo de gráficas (la misma función pinta en pantalla, en PNG y en SVG),
+// interacción (zoom, desplazamiento, lectura de puntos, rango de ajuste) y paneles de
+// curvas, ajuste y ejes.
+//
+// Las gráficas se dibujan en "coordenadas de página" (W × H px, 800 × 600 por defecto),
+// con fondo blanco y estilo de artículo; en pantalla se escala la página para que quepa.
+
+const FONT = 'Arial, Helvetica, sans-serif';
+const gview = $('gview'), gvctx = gview.getContext('2d');
+const activeGraph = () => { const w = activeWin(); return w && w.type === 'graph' ? w : null; };
+
+/* ---------- texto con subíndices, superíndices y símbolos ---------- */
+
+// \alpha → α, etc. (el espacio de detrás se respeta). Los subíndices van con llaves (x_{0}) para no romper nombres como E_pair;
+// los superíndices aceptan llaves o un número suelto (m^2, s^-1).
+const TEX = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ',
+  iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ',
+  upsilon: 'υ', phi: 'φ', varphi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
+  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+  AA: 'Å', deg: '°', circ: '°', cdot: '·', times: '×', pm: '±', mp: '∓', infty: '∞', approx: '≈', sim: '∼',
+  leq: '≤', geq: '≥', neq: '≠', propto: '∝', hbar: 'ħ', partial: '∂', nabla: '∇', langle: '⟨', rangle: '⟩',
+  to: '→', rightarrow: '→', leftarrow: '←', sqrt: '√', int: '∫', sum: 'Σ', minus: '−',
+};
+const texSym = (s) => s.replace(/\\([A-Za-z]+)/g, (m, k) => TEX[k] ?? m);
+
+function richParse(s) {
+  const segs = [];
+  const push = (t, lvl) => {
+    if (!t) return;
+    const l = segs[segs.length - 1];
+    if (l && l.lvl === lvl) l.t += t; else segs.push({ t, lvl });
+  };
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if ((ch === '^' || ch === '_') && s[i + 1] === '{') {
+      let depth = 1, j = i + 2;
+      while (j < s.length && depth) { if (s[j] === '{') depth++; else if (s[j] === '}') depth--; j++; }
+      push(texSym(s.slice(i + 2, depth ? j : j - 1)).replace(/[{}]/g, ''), ch === '^' ? 1 : -1);
+      i = j;
+      continue;
+    }
+    if (ch === '^') {
+      const m = /^\^([-−+]?\d+(?:\.\d+)?)/.exec(s.slice(i));
+      if (m) { push(m[1].replace('-', '−'), 1); i += m[0].length; continue; }
+    }
+    if (ch === '\\') {
+      const m = /^\\([A-Za-z]+)/.exec(s.slice(i));
+      if (m && m[1] in TEX) { push(TEX[m[1]], 0); i += m[0].length; continue; }
+    }
+    push(ch, 0);
+    i++;
+  }
+  return segs;
+}
+
+function setFont(ctx, px, weight = 400) { ctx.font = `${weight} ${px}px ${FONT}`; }
+
+function richWidth(ctx, s, fs, weight = 400) {
+  let w = 0;
+  for (const g of richParse(String(s))) { setFont(ctx, g.lvl ? fs * 0.7 : fs, weight); w += ctx.measureText(g.t).width; }
+  return w;
+}
+
+// Escribe texto enriquecido. vAlign: 'baseline', 'middle', 'top' o 'bottom'. Siempre se usa
+// textAlign = left y la línea base alfabética (así el SVG no depende de cómo alinee cada visor).
+function drawRich(ctx, s, x, y, fs, { align = 'left', vAlign = 'baseline', weight = 400 } = {}) {
+  const segs = richParse(String(s));
+  const ws = segs.map((g) => { setFont(ctx, g.lvl ? fs * 0.7 : fs, weight); return ctx.measureText(g.t).width; });
+  const total = ws.reduce((a, b) => a + b, 0);
+  let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+  const by = vAlign === 'middle' ? y + fs * 0.35 : vAlign === 'top' ? y + fs * 0.78 : vAlign === 'bottom' ? y - fs * 0.24 : y;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  segs.forEach((g, k) => {
+    setFont(ctx, g.lvl ? fs * 0.7 : fs, weight);
+    ctx.fillText(g.t, cx, by + (g.lvl === 1 ? -fs * 0.36 : g.lvl === -1 ? fs * 0.2 : 0));
+    cx += ws[k];
+  });
+  return total;
+}
+
+/* ---------- escalas y marcas de los ejes ---------- */
+
+const tf = (v, log) => (log ? Math.log10(v) : v);
+const itf = (u, log) => (log ? Math.pow(10, u) : u);
+
+function niceStep(raw) {
+  if (!(raw > 0) || !isFinite(raw)) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / mag;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+}
+
+// Rango automático: de marca a marca (lineal) o de década a década (log).
+function autoRange(a, b, log) {
+  if (log) {
+    let lo = Math.pow(10, Math.floor(Math.log10(a) + 1e-9)), hi = Math.pow(10, Math.ceil(Math.log10(b) - 1e-9));
+    if (hi <= lo) { lo /= 10; hi *= 10; }
+    return [lo, hi];
+  }
+  if (a === b) { const d = Math.abs(a) * 0.1 || 1; a -= d; b += d; }
+  const st = niceStep((b - a) / 6);
+  let lo = Math.floor(a / st + 1e-9) * st, hi = Math.ceil(b / st - 1e-9) * st;
+  // Un punto justo en el borde quedaría medio cortado: se amplía una marca menor por ese lado.
+  const m = Math.round((st / Math.pow(10, Math.floor(Math.log10(st) + 1e-9))) * 10) / 10;
+  const mst = st / (m === 2 ? 4 : 5), tol = (hi - lo) * 0.01;
+  if (a - lo < tol) lo -= mst;
+  if (hi - b < tol) hi += mst;
+  return [+lo.toPrecision(12), +hi.toPrecision(12)];
+}
+
+function rangeFor(ax, a, b, log, def) {
+  let lo = ax.min, hi = ax.max;
+  if (lo == null || hi == null) {
+    const [alo, ahi] = a <= b ? autoRange(a, b, log) : def;
+    if (lo == null) lo = alo;
+    if (hi == null) hi = ahi;
+  }
+  if (log) {
+    if (!(lo > 0)) lo = hi > 0 ? hi / 1000 : 0.1;
+    if (!(hi > lo)) hi = lo * 100;
+  } else if (!(hi > lo)) hi = lo + (Math.abs(lo) || 1);
+  return [lo, hi];
+}
+
+const minusSign = (s) => s.replace(/^-/, '−');
+
+function linTicks(lo, hi, n) {
+  const st = niceStep((hi - lo) / Math.max(1, n));
+  const mag = Math.pow(10, Math.floor(Math.log10(st) + 1e-9));
+  const m = Math.round((st / mag) * 10) / 10;
+  const mst = st / (m === 2 ? 4 : 5);
+  const major = [], minor = [];
+  for (let k = Math.ceil(lo / st - 1e-9); k * st <= hi + st * 1e-9; k++) major.push(+(k * st).toPrecision(12));
+  for (let k = Math.ceil(lo / mst - 1e-9); k * mst <= hi + mst * 1e-9; k++) minor.push(k * mst);
+  // Etiquetas: notación científica por etiqueta si los números son muy grandes o muy pequeños.
+  const maxAbs = Math.max(...major.map(Math.abs));
+  const sci = maxAbs >= 1e5 || (maxAbs > 0 && maxAbs < 1e-3);
+  const labels = major.map((v) => {
+    if (Math.abs(v) < st * 1e-6) return '0';
+    if (!sci) {
+      const d = Math.max(0, Math.ceil(-Math.log10(st) - 1e-9) + (m === 2.5 ? 1 : 0));
+      return minusSign(v.toFixed(Math.min(d, 12)));
+    }
+    const e = Math.floor(Math.log10(Math.abs(v)) + 1e-9);
+    const mant = v / Math.pow(10, e);
+    const d = clamp(Math.ceil(-Math.log10(st / Math.pow(10, e)) - 1e-9), 0, 6);
+    const ms = mant.toFixed(d);
+    const es = e < 0 ? '−' + -e : String(e);
+    if (/^-?1(\.0*)?$/.test(ms)) return (mant < 0 ? '−' : '') + `10^{${es}}`;
+    return `${minusSign(ms)}×10^{${es}}`;
+  });
+  return { major, minor, labels };
+}
+
+function logTicks(lo, hi, n) {
+  const ka = Math.ceil(Math.log10(lo) - 1e-9), kb = Math.floor(Math.log10(hi) + 1e-9);
+  if (kb - ka + 1 < 2) {
+    // Menos de dos décadas a la vista: marcas lineales sobre la escala logarítmica.
+    const t = linTicks(lo, hi, n);
+    const keep = t.major.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+    return { major: keep.map((i) => t.major[i]), labels: keep.map((i) => t.labels[i]), minor: t.minor.filter((v) => v > 0) };
+  }
+  const every = Math.max(1, Math.ceil((kb - ka + 1) / Math.max(2, n)));
+  const major = [], labels = [], minor = [];
+  for (let k = ka; k <= kb; k++) {
+    if ((k - ka) % every) { minor.push(Math.pow(10, k)); continue; }
+    major.push(Math.pow(10, k));
+    labels.push(`10^{${k < 0 ? '−' + -k : k}}`);
+  }
+  if (every === 1) {
+    for (let k = ka - 1; k <= kb; k++) for (let m = 2; m <= 9; m++) { const v = m * Math.pow(10, k); if (v >= lo && v <= hi) minor.push(v); }
+  }
+  return { major, minor, labels };
+}
+const axisTicks = (lo, hi, log, n) => (log ? logTicks(lo, hi, n) : linTicks(lo, hi, n));
+
+/* ---------- curvas ---------- */
+
+function curveLabel(g, c) {
+  if (c.label) return c.label;
+  if (c.kind === 'func') return `f(x) = ${c.expr}`;
+  const tb = win(c.table), y = colById(tb, c.yc);
+  if (!tb || !y) return '?';
+  const multi = new Set(g.curves.filter((d) => d.kind === 'data').map((d) => d.table)).size > 1;
+  return (multi ? tb.name + ': ' : '') + colLabel(y);
+}
+
+// Puntos de una curva de datos: filas con x e y numéricas (x = nº de fila si no hay columna X).
+function dataPoints(c) {
+  const tb = win(c.table);
+  const yc = colById(tb, c.yc);
+  if (!yc) return [];
+  const xc = colById(tb, c.xc), ye = colById(tb, c.ye), xe = colById(tb, c.xe);
+  const pts = [];
+  for (let r = 0; r < tb.rows; r++) {
+    const x = xc ? xc.data[r] : r + 1, y = yc.data[r];
+    if (!isNum(x) || !isNum(y)) continue;
+    const ey = ye && isNum(ye.data[r]) ? Math.abs(ye.data[r]) : 0;
+    const ex = xe && isNum(xe.data[r]) ? Math.abs(xe.data[r]) : 0;
+    pts.push({ x, y, ex, ey, r });
+  }
+  return pts;
+}
+
+// Funciones compiladas, por expresión y parámetros.
+const funcCache = new Map();
+function funcOf(c) {
+  const params = c.params || {};
+  const key = c.expr + '\u0001' + JSON.stringify(params);
+  let r = funcCache.get(key);
+  if (!r) {
+    const names = Object.keys(params);
+    try {
+      const fn = compileExpr(c.expr, { name: (n) => (n === 'x' ? 'v[0]' : names.includes(n) ? `v[${names.indexOf(n) + 1}]` : null) });
+      const buf = new Float64Array(names.length + 1);
+      names.forEach((n, j) => { buf[j + 1] = params[n]; });
+      r = { f: (x) => { buf[0] = x; return fn(buf); } };
+    } catch (e) { r = { err: e }; }
+    if (funcCache.size > 300) funcCache.clear();
+    funcCache.set(key, r);
+  }
+  return r;
+}
+
+function funcPoints(c, lo, hi, log) {
+  const F = funcOf(c);
+  if (!F.f) return [];
+  const a = c.xmin != null ? Math.max(lo, c.xmin) : lo, b = c.xmax != null ? Math.min(hi, c.xmax) : hi;
+  if (!(b > a)) return [];
+  const n = clamp(c.n || 400, 10, 20000);
+  const ua = tf(a, log), ub = tf(b, log);
+  const pts = [];
+  for (let k = 0; k <= n; k++) {
+    const x = itf(ua + ((ub - ua) * k) / n, log);
+    let y;
+    try { y = F.f(x); } catch (e) { y = NaN; }
+    pts.push(isFinite(y) ? { x, y } : null);
+  }
+  return pts;
+}
+
+function symbolPath(ctx, kind, x, y, r) {
+  switch (kind) {
+    case 'square': ctx.rect(x - r * 0.86, y - r * 0.86, r * 1.72, r * 1.72); break;
+    case 'triangle': ctx.moveTo(x, y - r * 1.15); ctx.lineTo(x + r, y + r * 0.6); ctx.lineTo(x - r, y + r * 0.6); ctx.closePath(); break;
+    case 'down': ctx.moveTo(x, y + r * 1.15); ctx.lineTo(x + r, y - r * 0.6); ctx.lineTo(x - r, y - r * 0.6); ctx.closePath(); break;
+    case 'diamond': ctx.moveTo(x, y - r * 1.2); ctx.lineTo(x + r * 0.9, y); ctx.lineTo(x, y + r * 1.2); ctx.lineTo(x - r * 0.9, y); ctx.closePath(); break;
+    case 'cross': { const d = r * 0.85; ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); break; }
+    case 'plus': ctx.moveTo(x - r * 1.1, y); ctx.lineTo(x + r * 1.1, y); ctx.moveTo(x, y - r * 1.1); ctx.lineTo(x, y + r * 1.1); break;
+    case 'star':
+      for (let k = 0; k < 10; k++) {
+        const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r * 0.5 : r * 1.2;
+        k ? ctx.lineTo(x + rr * Math.cos(a), y + rr * Math.sin(a)) : ctx.moveTo(x + rr * Math.cos(a), y + rr * Math.sin(a));
+      }
+      ctx.closePath();
+      break;
+    default: ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI);
+  }
+}
+const STROKE_SYMBOLS = new Set(['cross', 'plus']);
+const DASHES = { solid: [], dash: [7, 4], dot: [1.5, 3], dashdot: [7, 3, 1.5, 3] };
+const dashFor = (c) => (DASHES[c.dash] || []).map((v) => v * Math.max(1, c.width));
+
+function drawSymbols(ctx, c, pts) {
+  const r = c.size / 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  for (const p of pts) symbolPath(ctx, c.symbol, p.px, p.py, r);
+  if (STROKE_SYMBOLS.has(c.symbol)) {
+    ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(1, c.size / 6); ctx.stroke();
+  } else if (c.fill !== false) {
+    ctx.fillStyle = c.color; ctx.fill();
+  } else {
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(1, c.size / 7); ctx.stroke();
+  }
+}
+
+/* ---------- dibujo de la gráfica ---------- */
+
+// Dibuja la gráfica g en un contexto 2D (canvas o SvgCtx) de W × H y devuelve su geometría.
+function drawGraph(ctx, g, W, H) {
+  const fs = g.font, lx = g.x.log, ly = g.y.log;
+  const ink = '#111';
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  const vis = g.curves.filter((c) => !c.hidden);
+  const series = vis.map((c) => ({ c, pts: c.kind === 'data' ? dataPoints(c) : null }));
+
+  // Rango X: datos (con sus errores) y funciones con dominio propio.
+  let xa = Infinity, xb = -Infinity;
+  const addX = (v) => { if (isFinite(v) && (!lx || v > 0)) { if (v < xa) xa = v; if (v > xb) xb = v; } };
+  for (const s of series) {
+    if (s.pts) for (const p of s.pts) { addX(p.x - p.ex); addX(p.x + p.ex); if (p.ex && lx) addX(p.x); }
+    else { if (s.c.xmin != null) addX(s.c.xmin); if (s.c.xmax != null) addX(s.c.xmax); }
+  }
+  const [xlo, xhi] = rangeFor(g.x, xa, xb, lx, lx ? [0.1, 100] : [-10, 10]);
+  for (const s of series) if (!s.pts) s.pts = funcPoints(s.c, xlo, xhi, lx);
+
+  // Rango Y: solo lo que cae dentro del rango X.
+  let ya = Infinity, yb = -Infinity;
+  const addY = (v) => { if (isFinite(v) && (!ly || v > 0)) { if (v < ya) ya = v; if (v > yb) yb = v; } };
+  for (const s of series) {
+    for (const p of s.pts) {
+      if (!p || p.x < xlo || p.x > xhi) continue;
+      addY(p.y);
+      if (p.ey) { addY(p.y - p.ey); addY(p.y + p.ey); }
+    }
+  }
+  const [ylo, yhi] = rangeFor(g.y, ya, yb, ly, ly ? [0.1, 100] : [-1, 1]);
+
+  // Márgenes según el tamaño de las etiquetas.
+  const tfs = fs * 0.9, gap = fs * 0.45, tick = fs * 0.45, mtick = fs * 0.25;
+  const top = g.title ? fs * 2.3 : fs * 0.9;
+  const bottom = tfs + gap + (g.xlab ? fs * 1.55 : 0) + fs * 0.55;
+  const ph = Math.max(20, H - top - bottom);
+  const yt = axisTicks(ylo, yhi, ly, Math.max(2, Math.round(ph / (fs * 3.2))));
+  const ylw = Math.max(0, ...yt.labels.map((s) => richWidth(ctx, s, tfs)));
+  const left = fs * 0.6 + (g.ylab ? fs * 1.5 : 0) + ylw + gap;
+  let right = fs * 1.2;
+  let pw = Math.max(20, W - left - right);
+  let nx = Math.max(2, Math.round(pw / (fs * 5.5)));
+  let xt = axisTicks(xlo, xhi, lx, nx);
+  // Menos marcas si las etiquetas no caben.
+  for (let guard = 0; guard < 8; guard++) {
+    const need = xt.labels.reduce((a, s) => a + richWidth(ctx, s, tfs) + fs, 0);
+    if (need <= pw || nx <= 2) break;
+    nx = Math.max(2, Math.floor(nx * 0.7));
+    xt = axisTicks(xlo, xhi, lx, nx);
+  }
+  const lastW = xt.labels.length ? richWidth(ctx, xt.labels[xt.labels.length - 1], tfs) : 0;
+  right = Math.max(right, lastW / 2 + fs * 0.4);
+  pw = Math.max(20, W - left - right);
+
+  const ux0 = tf(xlo, lx), ux1 = tf(xhi, lx), uy0 = tf(ylo, ly), uy1 = tf(yhi, ly);
+  const X = (v) => left + ((tf(v, lx) - ux0) / (ux1 - ux0)) * pw;
+  const Y = (v) => top + ph - ((tf(v, ly) - uy0) / (uy1 - uy0)) * ph;
+  const xinv = (px) => itf(ux0 + ((px - left) / pw) * (ux1 - ux0), lx);
+  const yinv = (py) => itf(uy0 + ((top + ph - py) / ph) * (uy1 - uy0), ly);
+
+  // Rejilla.
+  if (g.grid) {
+    ctx.strokeStyle = '#dedede'; ctx.lineWidth = 1; ctx.setLineDash([]);
+    ctx.beginPath();
+    for (const v of xt.major) { const x = X(v); ctx.moveTo(x, top); ctx.lineTo(x, top + ph); }
+    for (const v of yt.major) { const y = Y(v); ctx.moveTo(left, y); ctx.lineTo(left + pw, y); }
+    ctx.stroke();
+  }
+
+  // Curvas, recortadas al área del gráfico.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(left, top, pw, ph);
+  ctx.clip();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (const s of series) {
+    const c = s.c;
+    for (const p of s.pts) if (p) { p.px = X(p.x); p.py = Y(p.y); }
+    const ok = (p) => p && isFinite(p.px) && isFinite(p.py);
+    if (c.kind === 'func') {
+      ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c));
+      ctx.beginPath();
+      let pen = false;
+      for (const p of s.pts) {
+        if (!ok(p)) { pen = false; continue; }
+        pen ? ctx.lineTo(p.px, p.py) : ctx.moveTo(p.px, p.py);
+        pen = true;
+      }
+      ctx.stroke();
+      continue;
+    }
+    const pts = s.pts.filter(ok);
+    if (pts.some((p) => p.ey || p.ex)) {
+      ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(0.8, Math.min(c.width, 1.5)); ctx.setLineDash([]);
+      const cap = Math.max(2, c.size * 0.4);
+      ctx.beginPath();
+      for (const p of pts) {
+        if (p.ey) {
+          const y1 = Y(p.y - p.ey), y2 = Y(p.y + p.ey);
+          if (isFinite(y2)) {
+            const ya1 = isFinite(y1) ? y1 : top + ph + 10;
+            ctx.moveTo(p.px, ya1); ctx.lineTo(p.px, y2);
+            ctx.moveTo(p.px - cap, y2); ctx.lineTo(p.px + cap, y2);
+            if (isFinite(y1)) { ctx.moveTo(p.px - cap, y1); ctx.lineTo(p.px + cap, y1); }
+          }
+        }
+        if (p.ex) {
+          const x1 = X(p.x - p.ex), x2 = X(p.x + p.ex);
+          if (isFinite(x2)) {
+            const xa1 = isFinite(x1) ? x1 : left - 10;
+            ctx.moveTo(xa1, p.py); ctx.lineTo(x2, p.py);
+            ctx.moveTo(x2, p.py - cap); ctx.lineTo(x2, p.py + cap);
+            if (isFinite(x1)) { ctx.moveTo(x1, p.py - cap); ctx.lineTo(x1, p.py + cap); }
+          }
+        }
+      }
+      ctx.stroke();
+    }
+    if (c.style !== 'scatter' && pts.length > 1) {
+      ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c));
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(p.px, p.py) : ctx.moveTo(p.px, p.py)));
+      ctx.stroke();
+    }
+    if (c.style !== 'line') drawSymbols(ctx, c, pts);
+  }
+  ctx.restore();
+
+  // Marco y marcas hacia dentro en los cuatro lados.
+  const lw = Math.max(1, fs / 14);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  const inside = (v, lo, hi) => v >= lo - 1e-9 * Math.abs(hi - lo) && v <= hi + 1e-9 * Math.abs(hi - lo);
+  for (const [vals, len] of [[xt.major, tick], [xt.minor, mtick]]) {
+    for (const v of vals) {
+      if (!inside(v, xlo, xhi)) continue;
+      const x = X(v);
+      ctx.moveTo(x, top + ph); ctx.lineTo(x, top + ph - len);
+      ctx.moveTo(x, top); ctx.lineTo(x, top + len);
+    }
+  }
+  for (const [vals, len] of [[yt.major, tick], [yt.minor, mtick]]) {
+    for (const v of vals) {
+      if (!inside(v, ylo, yhi)) continue;
+      const y = Y(v);
+      ctx.moveTo(left, y); ctx.lineTo(left + len, y);
+      ctx.moveTo(left + pw, y); ctx.lineTo(left + pw - len, y);
+    }
+  }
+  ctx.stroke();
+  ctx.lineJoin = 'miter';
+  ctx.strokeRect(left, top, pw, ph);
+
+  // Etiquetas de las marcas, títulos de los ejes y título.
+  ctx.fillStyle = ink;
+  xt.major.forEach((v, i) => { if (inside(v, xlo, xhi)) drawRich(ctx, xt.labels[i], X(v), top + ph + gap, tfs, { align: 'center', vAlign: 'top' }); });
+  yt.major.forEach((v, i) => { if (inside(v, ylo, yhi)) drawRich(ctx, yt.labels[i], left - gap, Y(v), tfs, { align: 'right', vAlign: 'middle' }); });
+  if (g.xlab) drawRich(ctx, g.xlab, left + pw / 2, H - fs * 0.45, fs, { align: 'center', vAlign: 'bottom' });
+  if (g.ylab) {
+    ctx.save();
+    ctx.translate(fs * 0.6 + fs * 0.62, top + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    drawRich(ctx, g.ylab, 0, 0, fs, { align: 'center', vAlign: 'middle' });
+    ctx.restore();
+  }
+  if (g.title) drawRich(ctx, g.title, left + pw / 2, fs * 0.55, fs * 1.1, { align: 'center', vAlign: 'top', weight: 700 });
+
+  drawLegend(ctx, g, series, { left, top, pw, ph }, fs);
+  ctx.restore();
+  return { left, top, pw, ph, X, Y, xinv, yinv, xr: [xlo, xhi], yr: [ylo, yhi], lx, ly, series };
+}
+
+function drawLegend(ctx, g, series, box, fs) {
+  const pos = g.legend === 'auto' ? (series.length >= 2 ? 'tr' : 'off') : g.legend;
+  if (pos === 'off' || !series.length) return;
+  const lfs = fs * 0.8, row = lfs * 1.5, sample = lfs * 2.4, pad = lfs * 0.6, m = fs * 0.6;
+  const labels = series.map((s) => curveLabel(g, s.c));
+  const tw = Math.max(...labels.map((l) => richWidth(ctx, l, lfs)));
+  const bw = pad * 2 + sample + lfs * 0.6 + tw, bh = pad * 2 + row * series.length - (row - lfs * 1.2);
+  const bx = pos[1] === 'r' ? box.left + box.pw - m - bw : box.left + m;
+  const by = pos[0] === 't' ? box.top + m : box.top + box.ph - m - bh;
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = '#8a8a8a';
+  ctx.lineWidth = Math.max(0.8, fs / 22);
+  ctx.strokeRect(bx, by, bw, bh);
+  series.forEach((s, i) => {
+    const c = s.c, cy = by + pad + lfs * 0.6 + row * i, x0 = bx + pad;
+    if (c.kind === 'func' || c.style !== 'scatter') {
+      ctx.strokeStyle = c.color; ctx.lineWidth = c.width; ctx.setLineDash(dashFor(c)); ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(x0, cy); ctx.lineTo(x0 + sample, cy); ctx.stroke();
+    }
+    if (c.kind === 'data' && c.style !== 'line') drawSymbols(ctx, { ...c, size: Math.min(c.size, lfs * 0.9) }, [{ px: x0 + sample / 2, py: cy }]);
+    ctx.fillStyle = '#111';
+    drawRich(ctx, labels[i], x0 + sample + lfs * 0.6, cy, lfs, { vAlign: 'middle' });
+  });
+}
+
+/* ---------- SVG: contexto 2D mínimo que escribe elementos SVG ---------- */
+
+const r2 = (v) => +v.toFixed(2);
+class SvgCtx {
+  constructor(W, H) {
+    this.W = W; this.H = H; this.out = []; this.defs = []; this.stack = []; this.nclip = 0;
+    this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1; this.font = `400 10px ${FONT}`;
+    this.globalAlpha = 1; this.lineJoin = 'miter'; this.lineCap = 'butt'; this.textAlign = 'left'; this.textBaseline = 'alphabetic';
+    this.dash = []; this.clipId = null; this.m = [1, 0, 0, 1, 0, 0]; this.d = '';
+    this.meas = document.createElement('canvas').getContext('2d');
+  }
+  save() {
+    const { fillStyle, strokeStyle, lineWidth, font, globalAlpha, lineJoin, lineCap, dash, clipId } = this;
+    this.stack.push({ fillStyle, strokeStyle, lineWidth, font, globalAlpha, lineJoin, lineCap, dash, clipId, m: this.m.slice() });
+  }
+  restore() { const s = this.stack.pop(); if (s) Object.assign(this, s); }
+  setLineDash(a) { this.dash = a.slice(); }
+  translate(x, y) { const m = this.m; m[4] += m[0] * x + m[2] * y; m[5] += m[1] * x + m[3] * y; }
+  rotate(a) {
+    const [p, q, r, s] = this.m, c = Math.cos(a), n = Math.sin(a);
+    this.m[0] = p * c + r * n; this.m[1] = q * c + s * n; this.m[2] = r * c - p * n; this.m[3] = s * c - q * n;
+  }
+  scale(sx, sy) { const m = this.m; m[0] *= sx; m[1] *= sx; m[2] *= sy; m[3] *= sy; }
+  pt(x, y) { const m = this.m; return `${r2(m[0] * x + m[2] * y + m[4])} ${r2(m[1] * x + m[3] * y + m[5])}`; }
+  beginPath() { this.d = ''; }
+  moveTo(x, y) { this.d += 'M' + this.pt(x, y); }
+  lineTo(x, y) { this.d += 'L' + this.pt(x, y); }
+  closePath() { this.d += 'Z'; }
+  rect(x, y, w, h) { this.moveTo(x, y); this.lineTo(x + w, y); this.lineTo(x + w, y + h); this.lineTo(x, y + h); this.closePath(); }
+  arc(x, y, r) { // solo círculos completos
+    const k = r2(r);
+    this.d += 'M' + this.pt(x + r, y) + `A${k} ${k} 0 1 0 ` + this.pt(x - r, y) + `A${k} ${k} 0 1 0 ` + this.pt(x + r, y) + 'Z';
+  }
+  extra() { return (this.clipId ? ` clip-path="url(#${this.clipId})"` : '') + (this.globalAlpha < 1 ? ` opacity="${this.globalAlpha}"` : ''); }
+  stroke() {
+    if (!this.d) return;
+    const dash = this.dash.length ? ` stroke-dasharray="${this.dash.map(r2).join(' ')}"` : '';
+    this.out.push(`<path d="${this.d}" fill="none" stroke="${this.strokeStyle}" stroke-width="${r2(this.lineWidth)}" stroke-linejoin="${this.lineJoin}" stroke-linecap="${this.lineCap}"${dash}${this.extra()}/>`);
+  }
+  fill() { if (this.d) this.out.push(`<path d="${this.d}" fill="${this.fillStyle}"${this.extra()}/>`); }
+  fillRect(x, y, w, h) { const d = this.d; this.beginPath(); this.rect(x, y, w, h); this.fill(); this.d = d; }
+  strokeRect(x, y, w, h) { const d = this.d; this.beginPath(); this.rect(x, y, w, h); this.stroke(); this.d = d; }
+  clip() { const id = 'clip' + ++this.nclip; this.defs.push(`<clipPath id="${id}"><path d="${this.d}"/></clipPath>`); this.clipId = id; }
+  measureText(s) { this.meas.font = this.font; return this.meas.measureText(s); }
+  fillText(s, x, y) {
+    const size = +(/([\d.]+)px/.exec(this.font) || [0, 10])[1];
+    const weight = (/^(\d{3}|bold)/.exec(this.font) || [0, '400'])[1];
+    const m = this.m;
+    const plain = m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1;
+    const pos = plain ? ` x="${r2(x + m[4])}" y="${r2(y + m[5])}"` : ` x="${r2(x)}" y="${r2(y)}" transform="matrix(${m.map((v) => +v.toFixed(6)).join(' ')})"`;
+    this.out.push(`<text${pos} font-size="${r2(size)}"${weight !== '400' ? ` font-weight="${weight}"` : ''} fill="${this.fillStyle}"${this.extra()}>${esc(s.replace(/ /g, ' '))}</text>`);
+  }
+  toString() {
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${this.W}" height="${this.H}" viewBox="0 0 ${this.W} ${this.H}" font-family="${FONT}" xml:space="preserve">\n<defs>${this.defs.join('')}</defs>\n${this.out.join('\n')}\n</svg>\n`;
+  }
+}
+
+function exportPng(g) {
+  const sc = +$('gPngScale').value || 2;
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(g.W * sc);
+  cv.height = Math.round(g.H * sc);
+  const ctx = cv.getContext('2d');
+  ctx.scale(sc, sc);
+  drawGraph(ctx, g, g.W, g.H);
+  cv.toBlob((b) => download(fileSafe(g.name) + '.png', b), 'image/png');
+}
+function exportSvg(g) {
+  const ctx = new SvgCtx(g.W, g.H);
+  drawGraph(ctx, g, g.W, g.H);
+  download(fileSafe(g.name) + '.svg', ctx.toString(), 'image/svg+xml');
+}
+
+/* ---------- vista en pantalla ---------- */
+
+let gGeom = null; // { s, ox, oy, G }: escala y posición de la página, geometría del gráfico
+let gQueued = false;
+function graphRender() {
+  if (gQueued) return;
+  gQueued = true;
+  requestAnimationFrame(graphRenderNow);
+}
+function graphRenderNow() {
+  gQueued = false;
+  const g = activeGraph();
+  if (!g) return;
+  const pane = $('graphPane');
+  const CW = pane.clientWidth, CH = pane.clientHeight;
+  if (!CW || !CH) return;
+  const dpr = window.devicePixelRatio || 1;
+  const bw = Math.round(CW * dpr), bh = Math.round(CH * dpr);
+  if (gview.width !== bw || gview.height !== bh) { gview.width = bw; gview.height = bh; }
+  const ctx = gvctx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, CW, CH);
+  const m = 18;
+  const s = Math.max(0.05, Math.min((CW - 2 * m) / g.W, (CH - 2 * m) / g.H));
+  const ox = Math.round((CW - g.W * s) / 2), oy = Math.round((CH - g.H * s) / 2);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.28)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(ox, oy, g.W * s, g.H * s);
+  ctx.restore();
+  ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+  const G = drawGraph(ctx, g, g.W, g.H);
+  // Rango de ajuste: banda azul (solo en pantalla).
+  const F = UI.fit.get(g.id);
+  const band = gDrag && gDrag.mode === 'range' ? [gDrag.a, gDrag.b] : F ? [F.xmin, F.xmax] : [null, null];
+  if (band[0] != null || band[1] != null) {
+    let a = band[0] != null ? G.X(band[0]) : G.left, b = band[1] != null ? G.X(band[1]) : G.left + G.pw;
+    if (a > b) [a, b] = [b, a];
+    a = clamp(a, G.left, G.left + G.pw); b = clamp(b, G.left, G.left + G.pw);
+    ctx.fillStyle = 'rgba(57,135,229,0.10)';
+    ctx.fillRect(a, G.top, b - a, G.ph);
+    ctx.strokeStyle = '#3987e5'; ctx.lineWidth = 1.2 / s; ctx.setLineDash([5 / s, 4 / s]);
+    ctx.beginPath();
+    for (const x of [a, b]) if (x > G.left + 0.5 && x < G.left + G.pw - 0.5) { ctx.moveTo(x, G.top); ctx.lineTo(x, G.top + G.ph); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  gGeom = { s, ox, oy, G };
+}
+
+const toPage = (e) => ({ x: (e.offsetX - gGeom.ox) / gGeom.s, y: (e.offsetY - gGeom.oy) / gGeom.s });
+const inPlot = (p, G) => p.x >= G.left && p.x <= G.left + G.pw && p.y >= G.top && p.y <= G.top + G.ph;
+
+let gDrag = null, wheelTimer = 0;
+gview.addEventListener('pointerdown', (e) => {
+  if (!gGeom || e.button !== 0) return;
+  const p = toPage(e), G = gGeom.G;
+  if (!inPlot(p, G)) return;
+  gview.setPointerCapture(e.pointerId);
+  $('gtip').hidden = true;
+  if (e.shiftKey) {
+    const x = G.xinv(p.x);
+    gDrag = { mode: 'range', a: x, b: x, x0: e.offsetX };
+  } else gDrag = { mode: 'pan', x0: e.offsetX, y0: e.offsetY, xr: G.xr.slice(), yr: G.yr.slice(), moved: false };
+});
+gview.addEventListener('pointermove', (e) => {
+  if (!gGeom) return;
+  const g = activeGraph(), G = gGeom.G;
+  if (gDrag && gDrag.mode === 'pan') {
+    const dx = (e.offsetX - gDrag.x0) / gGeom.s, dy = (e.offsetY - gDrag.y0) / gGeom.s;
+    if (Math.abs(dx) + Math.abs(dy) < 2 && !gDrag.moved) return;
+    gDrag.moved = true;
+    const shift = (r, d, len, log) => {
+      const u0 = tf(r[0], log), u1 = tf(r[1], log), du = (d / len) * (u1 - u0);
+      return [itf(u0 - du, log), itf(u1 - du, log)];
+    };
+    [g.x.min, g.x.max] = shift(gDrag.xr, dx, G.pw, g.x.log);
+    [g.y.min, g.y.max] = shift(gDrag.yr, -dy, G.ph, g.y.log);
+    graphRender();
+    syncAxesPanel();
+    return;
+  }
+  if (gDrag && gDrag.mode === 'range') {
+    const p = toPage(e);
+    gDrag.b = G.xinv(clamp(p.x, G.left, G.left + G.pw));
+    graphRender();
+    return;
+  }
+  hover(e);
+});
+gview.addEventListener('pointerup', () => {
+  if (!gDrag) return;
+  const d = gDrag;
+  gDrag = null;
+  const g = activeGraph();
+  if (d.mode === 'pan' && d.moved) hist.commit();
+  if (d.mode === 'range') {
+    const F = fitState(g);
+    const G = gGeom.G;
+    if (Math.abs(G.X(d.b) - G.X(d.a)) < 3) { F.xmin = F.xmax = null; }
+    else { F.xmin = +Math.min(d.a, d.b).toPrecision(6); F.xmax = +Math.max(d.a, d.b).toPrecision(6); }
+    syncFitPanel();
+    const p = document.querySelector('.panel[data-p="fit"]');
+    if (p) p.open = true;
+  }
+  graphRender();
+});
+gview.addEventListener('pointerleave', () => { $('gtip').hidden = true; $('cursorReadout').textContent = ''; });
+gview.addEventListener('dblclick', () => autoscale());
+gview.addEventListener('wheel', (e) => {
+  if (!gGeom) return;
+  const p = toPage(e), G = gGeom.G;
+  if (!inPlot(p, G)) return;
+  e.preventDefault();
+  const g = activeGraph();
+  const delta = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
+  const f = Math.exp(clamp(delta, -300, 300) * 0.0015);
+  const zoom = (r, c, log) => {
+    const u0 = tf(r[0], log), u1 = tf(r[1], log), uc = tf(c, log);
+    return [itf(uc - (uc - u0) * f, log), itf(uc + (u1 - uc) * f, log)];
+  };
+  if (!e.altKey) [g.x.min, g.x.max] = zoom(G.xr, G.xinv(p.x), g.x.log);
+  if (!e.shiftKey) [g.y.min, g.y.max] = zoom(G.yr, G.yinv(p.y), g.y.log);
+  graphRender();
+  syncAxesPanel();
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => hist.commit(), 400);
+}, { passive: false });
+
+function hover(e) {
+  const tip = $('gtip'), G = gGeom.G, g = activeGraph();
+  const p = toPage(e);
+  if (!inPlot(p, G)) { tip.hidden = true; $('cursorReadout').textContent = ''; return; }
+  $('cursorReadout').textContent = `x = ${fmtNum(G.xinv(p.x), 5)}   y = ${fmtNum(G.yinv(p.y), 5)}`;
+  let best = null, bd = 10 / gGeom.s;
+  for (const s of G.series) {
+    if (s.c.kind !== 'data') continue;
+    for (const q of s.pts) {
+      const d = Math.abs(q.px - p.x) + Math.abs(q.py - p.y);
+      if (d < bd) { bd = d; best = { s, q }; }
+    }
+  }
+  if (!best) { tip.hidden = true; return; }
+  const { s, q } = best, c = s.c, tb = win(c.table);
+  const xc = colById(tb, c.xc), yc = colById(tb, c.yc), ye = colById(tb, c.ye);
+  tip.innerHTML = `<b>${esc(curveLabel(g, c))}</b> · ${esc(t('tip_row', { r: q.r + 1 }))}<br>${esc(xc ? xc.name : t('row_number'))} = ${fmtCell(q.x)}<br>${esc(yc.name)} = ${fmtCell(q.y)}${ye && q.ey ? ` ± ${fmtCell(q.ey)}` : ''}`;
+  tip.hidden = false;
+  const sx = gGeom.ox + q.px * gGeom.s, sy = gGeom.oy + q.py * gGeom.s;
+  const W = gview.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = clamp(sx + 14 + tw > W ? sx - tw - 14 : sx + 14, 4, W - tw - 4) + 'px';
+  tip.style.top = clamp(sy - th - 10, 4, gview.clientHeight - th - 4) + 'px';
+}
+
+function autoscale() {
+  const g = activeGraph();
+  if (!g) return;
+  g.x.min = g.x.max = g.y.min = g.y.max = null;
+  hist.commit();
+  graphRender();
+  syncAxesPanel();
+}
+
+/* ---------- panel de curvas ---------- */
+
+const STYLE_TAG = { scatter: '•', line: '—', both: '•—' };
+function syncCurvesPanel() {
+  const g = activeGraph();
+  if (!g) return;
+  let sel = UI.curve.get(g.id);
+  if (!g.curves.some((c) => c.id === sel)) { sel = g.curves.length ? g.curves[0].id : null; UI.curve.set(g.id, sel); }
+  $('curveList').innerHTML = g.curves.length ? g.curves.map((c) => `<div class="curve${c.id === sel ? ' sel' : ''}" data-id="${c.id}">
+      <input type="checkbox" data-k="vis"${c.hidden ? '' : ' checked'} title="${esc(t('curve_vis_t'))}">
+      <input type="color" data-k="color" value="${c.color}" title="${esc(t('curve_color_t'))}">
+      <span class="cl" title="${esc(curveLabel(g, c))}">${esc(curveLabel(g, c))}</span>
+      <span class="ck">${c.kind === 'func' ? (c.fitOf != null || c.model ? t('tag_fit') : 'f(x)') : STYLE_TAG[c.style]}</span>
+      <button data-k="del" title="${esc(t('curve_del_t'))}">×</button></div>`).join('')
+    : `<div class="none">${esc(t('no_curves'))}</div>`;
+  const c = g.curves.find((d) => d.id === sel);
+  $('curveProps').innerHTML = c ? curvePropsHtml(g, c) : '';
+  syncAddRow();
+}
+
+function opt(v, label, cur) { return `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(label)}</option>`; }
+function curvePropsHtml(g, c) {
+  const field = (k, label, inner, wide) => `<label${wide ? ' class="wide"' : ''}><span>${esc(label)}</span>${inner}</label>`;
+  const num = (k, v, attrs = '') => `<input type="number" data-f="${k}" value="${v ?? ''}" ${attrs}>`;
+  let h = '<div class="grid2 sub">';
+  h += field('label', t('c_label'), `<input type="text" data-f="label" value="${esc(c.label || '')}" placeholder="${esc(curveLabel(g, { ...c, label: '' }))}">`, true);
+  if (c.kind === 'data') {
+    const tb = win(c.table);
+    const cols = tb ? tb.cols : [];
+    const colOpts = (cur, none) => (none ? opt('', none, cur ?? '') : '') + cols.map((k) => opt(k.id, k.name, cur)).join('');
+    h += field('table', t('c_table'), `<select data-f="table">${tablesList().map((w) => opt(w.id, w.name, c.table)).join('')}</select>`);
+    h += field('yc', 'Y', `<select data-f="yc">${colOpts(c.yc)}</select>`);
+    h += field('xc', 'X', `<select data-f="xc">${colOpts(c.xc, t('row_number'))}</select>`);
+    h += field('ye', t('c_yerr'), `<select data-f="ye">${colOpts(c.ye, t('none'))}</select>`);
+    h += field('xe', t('c_xerr'), `<select data-f="xe">${colOpts(c.xe, t('none'))}</select>`);
+    h += field('style', t('c_style'), `<select data-f="style">${['scatter', 'line', 'both'].map((s) => opt(s, t('st_' + s), c.style)).join('')}</select>`);
+    h += field('symbol', t('c_symbol'), `<select data-f="symbol">${SYMBOLS.map((s) => opt(s, t('sym_' + s), c.symbol)).join('')}</select>`);
+    h += field('size', t('c_size'), num('size', c.size, 'min="1" max="60" step="1"'));
+    h += `<label class="chk inline"><input type="checkbox" data-f="fill"${c.fill !== false ? ' checked' : ''}> <span>${esc(t('c_fill'))}</span></label>`;
+  } else {
+    h += field('expr', 'f(x) =', `<input type="text" class="mono" data-f="expr" value="${esc(c.expr)}" spellcheck="false">`, true);
+    const ps = Object.entries(c.params || {});
+    if (ps.length) h += `<p class="hint wide" style="grid-column:1/-1;margin:0">${esc(ps.map(([k, v]) => `${k} = ${fmtNum(v, 8)}`).join('   '))}</p>`;
+    h += field('xmin', t('c_xmin'), num('xmin', c.xmin, `step="any" placeholder="${esc(t('auto'))}"`));
+    h += field('xmax', t('c_xmax'), num('xmax', c.xmax, `step="any" placeholder="${esc(t('auto'))}"`));
+    h += field('n', t('c_points'), num('n', c.n, 'min="10" max="20000" step="10"'));
+    const F = funcOf(c);
+    if (F.err) h += `<p class="err" style="grid-column:1/-1">${esc(exprErrText(F.err))}</p>`;
+  }
+  h += field('width', t('c_width'), num('width', c.width, 'min="0.25" max="20" step="0.25"'));
+  h += field('dash', t('c_dash'), `<select data-f="dash">${Object.keys(DASHES).map((d) => opt(d, t('dash_' + d), c.dash)).join('')}</select>`);
+  return h + '</div>';
+}
+
+$('curveList').addEventListener('click', (e) => {
+  const g = activeGraph(), row = e.target.closest('.curve');
+  if (!g || !row) return;
+  const id = +row.dataset.id, c = g.curves.find((d) => d.id === id);
+  if (e.target.dataset.k === 'del') {
+    g.curves = g.curves.filter((d) => d !== c);
+    pruneCurves();
+    hist.commit();
+    syncGraphPanels();
+    graphRender();
+    return;
+  }
+  if (e.target.dataset.k === 'vis' || e.target.dataset.k === 'color') return;
+  UI.curve.set(g.id, id);
+  if (c.kind === 'data') { const F = fitState(g); if (F.curve !== id) { F.curve = id; guessParams(g, F); } }
+  syncGraphPanels();
+});
+$('curveList').addEventListener('change', (e) => {
+  const g = activeGraph(), row = e.target.closest('.curve');
+  if (!g || !row) return;
+  const c = g.curves.find((d) => d.id === +row.dataset.id);
+  if (e.target.dataset.k === 'vis') c.hidden = !e.target.checked;
+  if (e.target.dataset.k === 'color') c.color = e.target.value;
+  hist.commit();
+  graphRender();
+});
+$('curveList').addEventListener('input', (e) => {
+  if (e.target.dataset.k !== 'color') return;
+  const g = activeGraph(), c = g.curves.find((d) => d.id === +e.target.closest('.curve').dataset.id);
+  c.color = e.target.value;
+  graphRender();
+});
+
+$('curveProps').addEventListener('change', (e) => {
+  const g = activeGraph(), k = e.target.dataset.f;
+  const c = g && g.curves.find((d) => d.id === UI.curve.get(g.id));
+  if (!c || !k) return;
+  const v = e.target.value;
+  const numOrNull = (s) => { const x = parseFloat(s); return isFinite(x) ? x : null; };
+  switch (k) {
+    case 'label': c.label = v.trim(); break;
+    case 'table': {
+      const tb = win(+v);
+      c.table = tb.id;
+      const y = tb.cols.find((x) => x.role === 'Y') || tb.cols[0];
+      const x = y && xFor(tb, y);
+      c.yc = y ? y.id : null; c.xc = x ? x.id : null; c.ye = c.xe = null;
+      break;
+    }
+    case 'yc': c.yc = +v; break;
+    case 'xc': case 'ye': case 'xe': c[k] = v === '' ? null : +v; break;
+    case 'fill': c.fill = e.target.checked; break;
+    case 'size': case 'width': { const x = numOrNull(v); if (x > 0) c[k] = x; break; }
+    case 'n': { const x = numOrNull(v); if (x) c.n = clamp(Math.round(x), 10, 20000); break; }
+    case 'xmin': case 'xmax': c[k] = numOrNull(v); break;
+    case 'expr': c.expr = v.trim() || c.expr; break;
+    default: c[k] = v;
+  }
+  hist.commit();
+  syncGraphPanels();
+  graphRender();
+});
+
+function syncAddRow() {
+  const tabs = tablesList();
+  const ts = $('addTable'), prev = +ts.value;
+  ts.innerHTML = tabs.map((w) => opt(w.id, w.name, prev)).join('');
+  if (!tabs.some((w) => w.id === prev) && tabs.length) ts.value = tabs[tabs.length - 1].id;
+  fillAddCols();
+}
+function fillAddCols() {
+  const tb = win(+$('addTable').value);
+  const cols = tb ? tb.cols : [];
+  const y = cols.find((c) => c.role === 'Y') || cols[0];
+  const x = y && tb ? xFor(tb, y) : null;
+  $('addX').innerHTML = opt('', t('row_number'), x ? x.id : '') + cols.map((c) => opt(c.id, 'X: ' + c.name, x ? x.id : '')).join('');
+  $('addY').innerHTML = cols.map((c) => opt(c.id, 'Y: ' + c.name, y ? y.id : '')).join('');
+}
+$('addTable').addEventListener('change', fillAddCols);
+$('btnAddData').addEventListener('click', () => {
+  const g = activeGraph(), tb = win(+$('addTable').value);
+  const y = tb && colById(tb, +$('addY').value);
+  if (!g || !y) return;
+  const c = makeDataCurve(g, tb, y, 'scatter');
+  c.xc = $('addX').value === '' ? null : +$('addX').value;
+  g.curves.push(c);
+  UI.curve.set(g.id, c.id);
+  hist.commit();
+  syncGraphPanels();
+  graphRender();
+});
+function addFunction() {
+  const g = activeGraph(), src = $('addFunc').value.trim();
+  if (!g || !src) return;
+  try { compileExpr(src, { name: (n) => (n === 'x' ? 'v[0]' : null) }); } catch (e) { toast(exprErrText(e), 5000); return; }
+  const c = { id: nid(), kind: 'func', expr: src, params: {}, xmin: null, xmax: null, n: 400, label: '', style: 'line', color: nextColor(g), width: 2, dash: 'solid', hidden: false };
+  g.curves.push(c);
+  UI.curve.set(g.id, c.id);
+  $('addFunc').value = '';
+  hist.commit();
+  syncGraphPanels();
+  graphRender();
+}
+$('btnAddFunc').addEventListener('click', addFunction);
+$('addFunc').addEventListener('keydown', (e) => { if (e.key === 'Enter') addFunction(); });
+
+/* ---------- panel de ajuste ---------- */
+
+const modelName = (F) => t('m_' + F.model) + (F.model === 'poly' ? ` (${F.deg})` : '');
+function modelExpr(F) {
+  const M = FIT_MODELS[F.model];
+  return M ? (typeof M.expr === 'function' ? M.expr(F.deg) : M.expr) : F.expr || 'a*x + b';
+}
+function fitNames(expr) { return exprNames(expr).filter((n) => n !== 'x'); }
+
+function fitState(g) {
+  let F = UI.fit.get(g.id);
+  if (!F) { F = {}; UI.fit.set(g.id, F); }
+  F.model ??= 'linear'; F.deg ??= 2; F.init ??= {}; F.fixed ??= {}; F.weight ??= true;
+  F.xmin ??= null; F.xmax ??= null;
+  const data = g.curves.filter((c) => c.kind === 'data');
+  if (!data.some((c) => c.id === F.curve)) {
+    const sel = data.find((c) => c.id === UI.curve.get(g.id));
+    F.curve = (sel || data[0] || {}).id ?? null;
+    F.guessed = false;
+  }
+  if (F.expr == null) F.expr = modelExpr(F);
+  if (!F.guessed && F.curve != null) guessParams(g, F);
+  return F;
+}
+
+// Datos que entran en el ajuste: ordenados por x y dentro del rango elegido.
+function fitData(g, F) {
+  const c = g.curves.find((d) => d.id === F.curve && d.kind === 'data');
+  if (!c) return null;
+  let pts = dataPoints(c).filter((p) => (F.xmin == null || p.x >= F.xmin) && (F.xmax == null || p.x <= F.xmax));
+  pts.sort((a, b) => a.x - b.x);
+  const hasErr = c.ye != null && pts.length > 0;
+  const sigOk = hasErr && pts.every((p) => p.ey > 0);
+  return { c, x: pts.map((p) => p.x), y: pts.map((p) => p.y), sig: sigOk ? pts.map((p) => p.ey) : null, hasErr, sigOk };
+}
+
+function guessParams(g, F) {
+  F.guessed = true;
+  let names;
+  try { names = fitNames(F.expr); } catch (e) { return; }
+  const M = FIT_MODELS[F.model];
+  const D = fitData(g, F);
+  let gu = {};
+  if (M && D && D.x.length >= 2) {
+    try { gu = M.guess(D.x, D.y, F.deg) || {}; } catch (e) { gu = {}; }
+  }
+  for (const n of names) F.init[n] = isFinite(gu[n]) ? +(+gu[n]).toPrecision(6) : F.init[n] ?? 1;
+}
+
+function syncFitPanel() {
+  const g = activeGraph();
+  if (!g) return;
+  const F = fitState(g);
+  const data = g.curves.filter((c) => c.kind === 'data');
+  $('fitCurve').innerHTML = data.length ? data.map((c) => opt(c.id, curveLabel(g, c), F.curve)).join('') : opt('', t('fit_no_data'), '');
+  $('fitModel').value = F.model;
+  $('fitDegWrap').hidden = F.model !== 'poly';
+  $('fitDeg').value = F.deg;
+  if (document.activeElement !== $('fitExpr')) $('fitExpr').value = F.expr;
+  renderParams(g, F);
+  if (document.activeElement !== $('fitXmin')) $('fitXmin').value = F.xmin ?? '';
+  if (document.activeElement !== $('fitXmax')) $('fitXmax').value = F.xmax ?? '';
+  const D = fitData(g, F);
+  $('fitWeight').checked = F.weight;
+  $('fitWeight').disabled = !(D && D.hasErr);
+  $('fitWeight').closest('label').title = D && D.hasErr ? (D.sigOk ? '' : t('fit_err_zero')) : t('fit_weight_none');
+  $('btnFit').disabled = $('btnGuess').disabled = !data.length;
+  $('fitOut').textContent = F.result || '';
+  $('fitActions').hidden = !F.result;
+}
+
+function renderParams(g, F) {
+  const err = $('fitExprErr');
+  let names;
+  try { names = fitNames(F.expr); err.hidden = true; $('fitExpr').classList.remove('bad'); }
+  catch (e) { err.textContent = exprErrText(e); err.hidden = false; $('fitExpr').classList.add('bad'); names = []; }
+  if (names.includes('i')) names = names.filter((n) => n !== 'i');
+  $('fitParams').innerHTML = names.length
+    ? `<thead><tr><th>${esc(t('fit_param'))}</th><th>${esc(t('fit_init'))}</th><th>${esc(t('fit_fixed'))}</th></tr></thead><tbody>` +
+      names.map((n) => `<tr><td>${esc(n)}</td><td><input type="number" step="any" data-p="${esc(n)}" value="${+(+(F.init[n] ?? 1)).toPrecision(8)}"></td><td><input type="checkbox" data-fix="${esc(n)}"${F.fixed[n] ? ' checked' : ''} title="${esc(t('fit_fixed_t'))}"></td></tr>`).join('') + '</tbody>'
+    : '';
+}
+
+// Valor ± error redondeados a dos cifras significativas del error.
+function fmtPM(v, e) {
+  if (!isFinite(e) || e <= 0) return `${fmtNum(v, 8)}${e === 0 ? '' : ' ± ?'}`;
+  const ev = Math.floor(Math.log10(e));
+  const av = Math.abs(v);
+  if (av >= 1e-3 && av < 1e6 && e >= 1e-6) {
+    const dec = clamp(1 - ev, 0, 12);
+    return minusSign(v.toFixed(dec)) + ' ± ' + e.toFixed(dec);
+  }
+  const ex = av > 0 ? Math.floor(Math.log10(av)) : ev;
+  const sc = Math.pow(10, ex), dec = clamp(1 - (ev - ex), 0, 12);
+  return `(${minusSign((v / sc).toFixed(dec))} ± ${(e / sc).toFixed(dec)})e${ex}`;
+}
+
+function fitReport(g, F, D, names, res) {
+  const w = Math.max(...names.map((n) => n.length));
+  const lines = [
+    `${g.name} · ${curveLabel(g, D.c)} · ${modelName(F)}`,
+    `y = ${F.expr}`,
+    `${t('fit_npts', { n: res.n })}, x ∈ [${fmtNum(D.x[0])}, ${fmtNum(D.x[D.x.length - 1])}] · ${res.weighted ? t('fit_weighted') : t('fit_unweighted')}`,
+    '',
+    ...names.map((n, j) => `  ${n.padEnd(w)} = ${res.err[j] === 0 && F.fixed[n] ? fmtNum(res.p[j], 8) + `  (${t('fit_fixed').toLowerCase()})` : fmtPM(res.p[j], res.err[j])}`),
+    '',
+    `χ²/ν = ${fmtNum(res.redchi2, 5)}   (χ² = ${fmtNum(res.chi2, 5)}, ν = ${res.dof})`,
+    `R² = ${isFinite(res.r2) ? res.r2.toFixed(6) : '–'}   R²adj = ${isFinite(res.adjr2) ? res.adjr2.toFixed(6) : '–'}   RMSE = ${fmtNum(res.rmse, 5)}`,
+  ];
+  if (!res.weighted) lines.push(t('fit_err_note'));
+  lines.push(res.converged ? t('fit_converged', { n: res.iter }) : t('fit_not_converged', { n: res.iter }));
+  return lines.join('\n');
+}
+
+function runFit() {
+  const g = activeGraph();
+  if (!g) return;
+  const F = fitState(g);
+  const out = $('fitOut');
+  let names;
+  try { names = fitNames(F.expr); } catch (e) { toast(exprErrText(e), 5000); return; }
+  if (!names.length) { toast(t('fit_no_params'), 5000); return; }
+  let fn;
+  try { fn = compileExpr(F.expr, { name: (n) => (n === 'x' ? 'v[0]' : names.includes(n) ? `v[${names.indexOf(n) + 1}]` : null) }); }
+  catch (e) { toast(exprErrText(e), 5000); return; }
+  const D = fitData(g, F);
+  if (!D || !D.x.length) { toast(t('fit_no_points'), 5000); return; }
+  const buf = new Float64Array(names.length + 1);
+  const f = (x, p) => { buf[0] = x; for (let j = 0; j < p.length; j++) buf[j + 1] = p[j]; return fn(buf); };
+  const p0 = names.map((n) => (isFinite(F.init[n]) ? +F.init[n] : 1));
+  const useW = F.weight && D.hasErr;
+  if (useW && !D.sigOk) { toast(t('fit_err_zero'), 6000); return; }
+  const res = lmFit({ f, x: D.x, y: D.y, sig: useW ? D.sig : null, p0, fixed: names.map((n) => !!F.fixed[n]) });
+  if (res.error) {
+    F.result = t('fit_fail_' + res.error, { n: res.need });
+    out.textContent = F.result;
+    $('fitActions').hidden = true;
+    return;
+  }
+  names.forEach((n, j) => { F.init[n] = res.p[j]; });
+  F.result = fitReport(g, F, D, names, res);
+  F.last = { names, p: res.p, curve: D.c.id };
+  // Curva del ajuste: se sustituye la anterior del mismo modelo sobre los mismos datos.
+  let fc = g.curves.find((c) => c.kind === 'func' && c.fitOf === D.c.id && c.expr === F.expr);
+  if (!fc) {
+    fc = { id: nid(), kind: 'func', fitOf: D.c.id, model: F.model, expr: F.expr, params: {}, n: 400, label: '', style: 'line', color: nextColor(g), width: 2, dash: 'solid', hidden: false };
+    g.curves.push(fc);
+  }
+  fc.params = Object.fromEntries(names.map((n, j) => [n, res.p[j]]));
+  fc.xmin = D.x[0];
+  fc.xmax = D.x[D.x.length - 1];
+  fc.model = F.model;
+  fc.label = `${t('fit_label')}: ${modelName(F)}`;
+  logResult(F.result);
+  hist.commit();
+  syncGraphPanels();
+  graphRender();
+}
+
+// Tabla con x, y, el valor del ajuste y el residuo de cada punto ajustado.
+function fitToTable() {
+  const g = activeGraph();
+  const F = g && fitState(g);
+  if (!F || !F.last) return;
+  const fc = g.curves.find((c) => c.kind === 'func' && c.fitOf === F.last.curve && c.expr === F.expr);
+  const D = fitData(g, { ...F, curve: F.last.curve });
+  if (!fc || !D) return;
+  const f = funcOf(fc).f;
+  const tb = win(D.c.table), xc = colById(tb, D.c.xc), yc = colById(tb, D.c.yc);
+  const cx = makeCol(xc ? xc.name : 'i', 'X'), cy = makeCol(yc.name, 'Y'), cf = makeCol('fit', 'Y'), cr = makeCol('residual', 'Y');
+  cx.unit = xc ? xc.unit : ''; cy.unit = cf.unit = cr.unit = yc.unit;
+  D.x.forEach((x, i) => {
+    const v = f(x);
+    cx.data.push(x); cy.data.push(D.y[i]);
+    cf.data.push(isFinite(v) ? v : null); cr.data.push(isFinite(v) ? D.y[i] - v : null);
+  });
+  const nt = addTable({ name: 'Fit', cols: [cx, cy, cf, cr], rows: D.x.length });
+  P.active = nt.id;
+  hist.commit();
+  renderAll();
+}
+
+$('fitCurve').addEventListener('change', (e) => {
+  const g = activeGraph(), F = fitState(g);
+  F.curve = +e.target.value;
+  guessParams(g, F);
+  syncFitPanel();
+});
+$('fitModel').addEventListener('change', (e) => {
+  const g = activeGraph(), F = fitState(g);
+  F.model = e.target.value;
+  if (F.model !== 'custom') F.expr = modelExpr(F);
+  guessParams(g, F);
+  syncFitPanel();
+  if (F.model === 'custom') { $('fitExpr').focus(); $('fitExpr').select(); }
+});
+$('fitDeg').addEventListener('change', (e) => {
+  const g = activeGraph(), F = fitState(g);
+  F.deg = clamp(Math.round(+e.target.value) || 2, 1, 9);
+  F.expr = modelExpr(F);
+  guessParams(g, F);
+  syncFitPanel();
+});
+$('fitExpr').addEventListener('input', (e) => {
+  const g = activeGraph(), F = fitState(g);
+  F.expr = e.target.value;
+  if (F.model !== 'custom' && F.expr !== modelExpr(F)) { F.model = 'custom'; $('fitModel').value = 'custom'; $('fitDegWrap').hidden = true; }
+  try { for (const n of fitNames(F.expr)) if (!(n in F.init)) F.init[n] = 1; } catch (err) { /* se muestra abajo */ }
+  renderParams(g, F);
+});
+$('fitParams').addEventListener('change', (e) => {
+  const g = activeGraph(), F = fitState(g);
+  if (e.target.dataset.p) { const v = parseFloat(e.target.value); if (isFinite(v)) F.init[e.target.dataset.p] = v; }
+  if (e.target.dataset.fix) F.fixed[e.target.dataset.fix] = e.target.checked;
+});
+for (const id of ['fitXmin', 'fitXmax']) {
+  $(id).addEventListener('change', (e) => {
+    const g = activeGraph(), F = fitState(g);
+    const v = parseFloat(e.target.value);
+    F[id === 'fitXmin' ? 'xmin' : 'xmax'] = isFinite(v) ? v : null;
+    graphRender();
+  });
+}
+$('fitWeight').addEventListener('change', (e) => { fitState(activeGraph()).weight = e.target.checked; });
+$('btnGuess').addEventListener('click', () => { const g = activeGraph(); guessParams(g, fitState(g)); syncFitPanel(); });
+$('btnFit').addEventListener('click', runFit);
+$('btnFitCopy').addEventListener('click', () => {
+  const F = fitState(activeGraph());
+  if (F.result) navigator.clipboard.writeText(F.result).then(() => toast(t('copied')), () => toast(t('copy_fail')));
+});
+$('btnFitTable').addEventListener('click', fitToTable);
+
+/* ---------- panel de ejes ---------- */
+
+function syncAxesPanel() {
+  const g = activeGraph();
+  if (!g) return;
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v ?? ''; };
+  const rnd = (v) => (v == null ? '' : +(+v).toPrecision(6));
+  set('gTitle', g.title); set('gXlab', g.xlab); set('gYlab', g.ylab);
+  set('gXmin', rnd(g.x.min)); set('gXmax', rnd(g.x.max)); set('gYmin', rnd(g.y.min)); set('gYmax', rnd(g.y.max));
+  $('gXlog').checked = g.x.log; $('gYlog').checked = g.y.log; $('gGrid').checked = g.grid;
+  $('gLegend').value = g.legend;
+  set('gW', g.W); set('gH', g.H); set('gFont', g.font);
+}
+function axesInput(id, fn) {
+  $(id).addEventListener('change', (e) => {
+    const g = activeGraph();
+    if (!g) return;
+    fn(g, e.target);
+    hist.commit();
+    syncAxesPanel();
+    syncCurvesPanel();
+    graphRender();
+  });
+}
+const numOr = (s, d) => { const v = parseFloat(s); return isFinite(v) ? v : d; };
+axesInput('gTitle', (g, el) => { g.title = el.value; });
+axesInput('gXlab', (g, el) => { g.xlab = el.value; });
+axesInput('gYlab', (g, el) => { g.ylab = el.value; });
+axesInput('gXmin', (g, el) => { g.x.min = numOr(el.value, null); });
+axesInput('gXmax', (g, el) => { g.x.max = numOr(el.value, null); });
+axesInput('gYmin', (g, el) => { g.y.min = numOr(el.value, null); });
+axesInput('gYmax', (g, el) => { g.y.max = numOr(el.value, null); });
+axesInput('gXlog', (g, el) => { g.x.log = el.checked; g.x.min = g.x.max = null; });
+axesInput('gYlog', (g, el) => { g.y.log = el.checked; g.y.min = g.y.max = null; });
+axesInput('gGrid', (g, el) => { g.grid = el.checked; });
+axesInput('gLegend', (g, el) => { g.legend = el.value; });
+axesInput('gW', (g, el) => { g.W = clamp(Math.round(numOr(el.value, g.W)), 200, 4000); });
+axesInput('gH', (g, el) => { g.H = clamp(Math.round(numOr(el.value, g.H)), 150, 4000); });
+axesInput('gFont', (g, el) => { g.font = clamp(numOr(el.value, g.font), 6, 60); });
+
+function syncGraphPanels() {
+  syncCurvesPanel();
+  syncFitPanel();
+  syncAxesPanel();
+}
