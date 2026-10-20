@@ -308,8 +308,13 @@ function openColMenu(tb, c, x, y) {
   const s = selOf(tb), R = selRect(s);
   const inSel = (R.ra === 0 && R.rb === tb.rows - 1 && c >= R.ca && c <= R.cb) || s.extra.includes(tb.cols[c].id);
   if (!inSel) { s.c0 = s.c1 = c; s.r0 = 0; s.r1 = tb.rows - 1; s.extra = []; selChanged(tb, false); }
-  const n = selectedCols(tb).length;
-  showCtxMenu(gridItem('colrename', t('hc_rename'), c) + '<hr>' + gridItem('colbefore', t('hc_before')) + gridItem('colafter', t('hc_after')) +
+  const cols = selectedCols(tb), n = cols.length;
+  // Papel en las gráficas, para todas las columnas seleccionadas; marcado si lo comparten.
+  const cur = cols.every((col) => col.role === cols[0].role) ? cols[0].role : null;
+  const roles = ['X', 'Y', 'xErr', 'yErr', 'none'].map((r) =>
+    `<button role="menuitemradio" aria-checked="${r === cur}" data-ctx="colrole" data-role="${r}">${esc(t('role_' + r))}</button>`).join('');
+  showCtxMenu(`<div class="ctx-sub"><button role="menuitem" aria-haspopup="menu">${esc(t('col_role'))}</button><div class="menu-list" role="menu">${roles}</div></div>` +
+    '<hr>' + gridItem('colrename', t('hc_rename'), c) + '<hr>' + gridItem('colbefore', t('hc_before')) + gridItem('colafter', t('hc_after')) +
     '<hr>' + gridItem('coldel', t('hc_del', { n }), '', true), x, y);
 }
 function openRowMenu(tb, r, x, y) {
@@ -784,14 +789,17 @@ $('colName').addEventListener('change', (e) => {
   syncColumnPanel();
   syncStats();
 });
-$('colRole').addEventListener('change', (e) => {
+// Cambia el papel de las columnas seleccionadas (panel Columna o clic derecho en la cabecera).
+function setColsRole(role) {
   const tb = activeTable(), c = tb && curCol(tb);
   if (!c) return;
-  for (const col of selectedCols(tb)) col.role = e.target.value;
-  c.role = e.target.value;
+  for (const col of selectedCols(tb)) col.role = role;
+  c.role = role;
   hist.commit();
   gridRenderHead(tb);
-});
+  syncColumnPanel();
+}
+$('colRole').addEventListener('change', (e) => setColsRole(e.target.value));
 $('colUnit').addEventListener('change', (e) => {
   const tb = activeTable(), c = tb && curCol(tb);
   if (!c) return;
