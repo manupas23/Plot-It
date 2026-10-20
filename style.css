@@ -87,11 +87,12 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
   border-bottom: 1px solid var(--border);
 }
 .tabs .btn { margin-bottom: 5px; flex: none; }
-.tablist { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.tablist { display: flex; gap: 2px; flex: 0 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; margin-bottom: -1px; }
+.tablist::-webkit-scrollbar { display: none; }
 .tab {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 10px; border: 1px solid transparent; border-bottom: 0;
   border-radius: 8px 8px 0 0; color: var(--text-secondary); cursor: pointer; white-space: nowrap; user-select: none; flex: none;
-  position: relative; top: 1px;
+  position: relative;
 }
 .tab:hover { background: var(--surface-2); }
 .tab.active { background: var(--surface-1); border-color: var(--border); color: var(--text-primary); }
@@ -101,6 +102,16 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .tab .tx { border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 3px; border-radius: 4px; }
 .tab .tx:hover { color: var(--danger); background: var(--surface-2); }
 .tab input { width: 120px; padding: 1px 5px; }
+/* Botones de pestaña nueva: resaltados con el color de acento, con el icono de lo que crean. */
+.btn.add {
+  display: inline-flex; align-items: center; gap: 5px; padding-left: 9px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-2)); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--text-primary);
+}
+.btn.add:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 26%, var(--surface-2)); border-color: var(--accent); }
+.btn.add .ti { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.btn.add .plus { font-weight: 700; color: var(--accent); margin-right: -1px; }
+#btnNewTable { margin-left: 4px; }
+#btnSplitClose { margin-left: auto; }
 
 .pane { flex: 1; min-height: 0; position: relative; }
 /* Pantalla dividida: dos huecos con una barra en medio; el que tiene el foco lleva el borde azul. */

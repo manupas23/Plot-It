@@ -506,14 +506,31 @@ const ICON_GRAPH = '<svg class="ti" viewBox="0 0 16 16" aria-hidden="true"><path
 const tabHtml = (w, active) => `<div class="tab${active ? ' active' : ''}" role="tab" data-id="${w.id}" title="${esc(t('tab_t'))}">${w.type === 'table' ? ICON_TABLE : ICON_GRAPH}<span class="tn">${esc(w.name)}</span><button class="tx" data-close="${w.id}" title="${esc(t('close_t'))}">×</button></div>`;
 // Con la pantalla dividida, cada ventana tiene sus pestañas: las de la que tiene el foco van en
 // #tabs y las de la otra en #tabs2.
+const seenTabs = new Set();
 function renderTabs() {
   const S = UI.split, fg = S ? S.focus : 0;
   $('tabs').innerHTML = groupWins(fg).map((w) => tabHtml(w, w.id === P.active)).join('');
   if (S) $('tabs2').innerHTML = groupWins(1 - fg).map((w) => tabHtml(w, w.id === S.act[1 - fg])).join('');
+  // Una pestaña recién creada entra creciendo y empuja a la derecha los botones que la siguen
+  // (no al arrancar ni al abrir un proyecto, que traen muchas a la vez).
+  const fresh = P.wins.filter((w) => !seenTabs.has(w.id));
+  const starting = !seenTabs.size;
+  fresh.forEach((w) => seenTabs.add(w.id));
+  if (!starting && fresh.length === 1) growTab(document.querySelector(`.tablist .tab[data-id="${fresh[0].id}"]`));
   for (const el of [$('tabs'), $('tabs2')]) {
     const cur = el.querySelector('.tab.active');
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
+}
+
+function growTab(el) {
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cs = getComputedStyle(el), w = el.getBoundingClientRect().width;
+  el.style.overflow = 'hidden';
+  el.animate([
+    { width: '0px', paddingLeft: '0px', paddingRight: '0px', opacity: 0 },
+    { width: `${w}px`, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, opacity: 1 },
+  ], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' }).onfinish = () => { el.style.overflow = ''; };
 }
 
 function activate(id) {

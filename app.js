@@ -87,6 +87,11 @@ for (const bar of [$('tabs'), $('tabs2')]) {
     const tab = e.target.closest('.tab');
     if (tab && e.button === 1) { e.preventDefault(); closeWin(+tab.dataset.id); }
   });
+  bar.addEventListener('wheel', (e) => {
+    if (bar.scrollWidth <= bar.clientWidth) return;
+    e.preventDefault();
+    bar.scrollLeft += e.deltaY + e.deltaX;
+  }, { passive: false });
   bar.addEventListener('dblclick', (e) => {
     const tab = e.target.closest('.tab');
     if (tab && !e.target.closest('[data-close]') && !tab.querySelector('input')) renameTab(tab);
