@@ -124,6 +124,7 @@ ctxMenu.addEventListener('click', (e) => {
   else if (item.dataset.cmd) menuCommand(item.dataset.cmd);
   else if (item.dataset.ctx === 'open' && g) openImageTab(g);
   else if (item.dataset.ctx === 'save' && g) saveImageAs(g);
+  else if (/^(col|row)/.test(item.dataset.ctx)) gridCtxCommand(item.dataset.ctx, +item.dataset.c);
   else if (item.dataset.ctx === 'beside') openBeside(+item.dataset.id);
   else if (item.dataset.ctx === 'unsplit') splitClose();
   else if (item.dataset.ctx === 'rename') { const el = $('tabs').querySelector(`.tab[data-id="${item.dataset.id}"]`); if (el) renameTab(el); }

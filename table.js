@@ -189,10 +189,16 @@ gridEl.addEventListener('pointerdown', (e) => {
     if (e.ctrlKey || e.metaKey) {
       const id = tb.cols[c].id;
       s.extra = s.extra.includes(id) ? s.extra.filter((x) => x !== id) : [...s.extra, id];
-    } else {
-      if (!e.shiftKey) { s.c0 = c; s.extra = []; }
+    } else if (e.shiftKey) {
       s.c1 = c; s.r0 = 0; s.r1 = tb.rows - 1;
       dragSel = 'col';
+    } else {
+      // Si se pulsa dentro de un bloque de columnas ya seleccionado, se arrastra el bloque entero;
+      // si se suelta sin arrastrar, queda seleccionada solo esa columna.
+      const R0 = selRect(s), inBlock = R0.ra === 0 && R0.rb === tb.rows - 1 && !s.extra.length && c >= R0.ca && c <= R0.cb;
+      if (!inBlock) { s.c0 = s.c1 = c; s.extra = []; }
+      s.r0 = 0; s.r1 = tb.rows - 1;
+      colDrag = { tb, x0: e.clientX, on: false, gap: -1, collapse: inBlock && R0.ca !== R0.cb ? c : null };
     }
   } else if (th && tr.dataset.r != null) {
     const r = +tr.dataset.r;
@@ -220,14 +226,109 @@ gridEl.addEventListener('pointerover', (e) => {
   selChanged(tb, false);
 });
 window.addEventListener('pointermove', (e) => {
+  if (colDrag) colDragMove(e);
   if (!resizing) return;
   resizing.c.w = Math.max(48, Math.round(resizing.w0 + e.clientX - resizing.x0));
   gridRenderHead(activeTable());
 });
 window.addEventListener('pointerup', () => {
   dragSel = null;
+  if (colDrag) colDragEnd();
   if (resizing) { resizing = null; hist.commit(); }
 });
+// Arrastrar una cabecera mueve la columna (o el bloque seleccionado). Una raya azul marca el hueco
+// donde caerá; cerca de los bordes, la tabla se desplaza sola; Esc cancela.
+let colDrag = null;
+const colMark = document.createElement('div');
+colMark.className = 'colmark';
+colMark.hidden = true;
+gridWrap.appendChild(colMark);
+function colDragMove(e) {
+  const D = colDrag;
+  if (!(e.buttons & 1)) { colDragEnd(); return; }
+  if (!D.on) {
+    if (Math.abs(e.clientX - D.x0) < 6) return;
+    D.on = true;
+    document.body.classList.add('col-moving');
+    const R = selRect(selOf(D.tb));
+    gridHead.querySelectorAll('th[data-c]').forEach((th) => th.classList.toggle('moving', +th.dataset.c >= R.ca && +th.dataset.c <= R.cb));
+  }
+  const wr = gridWrap.getBoundingClientRect();
+  if (e.clientX < wr.left + rowHeadW(D.tb) + 24) gridWrap.scrollLeft -= 20;
+  else if (e.clientX > wr.right - 24) gridWrap.scrollLeft += 20;
+  const ths = [...gridHead.querySelectorAll('th[data-c]')];
+  let gap = ths.findIndex((th) => { const r = th.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
+  if (gap < 0) gap = ths.length;
+  D.gap = gap;
+  const x = ths[gap] ? ths[gap].getBoundingClientRect().left : ths[ths.length - 1].getBoundingClientRect().right;
+  colMark.style.left = `${x - wr.left + gridWrap.scrollLeft - 1}px`;
+  colMark.style.top = `${gridWrap.scrollTop}px`;
+  colMark.style.height = `${gridWrap.clientHeight}px`;
+  colMark.hidden = false;
+}
+function colDragEnd(cancel = false) {
+  const D = colDrag;
+  colDrag = null;
+  colMark.hidden = true;
+  document.body.classList.remove('col-moving');
+  if (!D) return;
+  const tb = D.tb, s = selOf(tb), R = selRect(s), n = R.cb - R.ca + 1, g = D.gap;
+  if (!D.on) {
+    if (D.collapse != null) { s.c0 = s.c1 = D.collapse; selChanged(tb, false); }
+    return;
+  }
+  if (cancel || g < 0 || (g >= R.ca && g <= R.cb + 1)) { gridRenderHead(tb); return; }
+  const block = tb.cols.splice(R.ca, n), at = g > R.cb ? g - n : g;
+  tb.cols.splice(at, 0, ...block);
+  s.c0 = at; s.c1 = at + n - 1; s.extra = [];
+  hist.commit();
+  afterDataChange();
+}
+document.addEventListener('keydown', (e) => { if (colDrag && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); colDragEnd(true); } }, true);
+
+// Clic derecho en la cabecera de una columna o en el número de una fila: su menú. Si no estaba
+// seleccionada, se selecciona antes; las acciones valen para toda la selección.
+gridEl.addEventListener('contextmenu', (e) => {
+  const tb = activeTable(), th = e.target.closest('th');
+  if (!tb || !th || e.target.closest('.hedit')) return;
+  const tr = th.parentElement;
+  if (th.dataset.c != null) { e.preventDefault(); openColMenu(tb, +th.dataset.c, e.clientX, e.clientY); }
+  else if (tr.dataset.r != null) { e.preventDefault(); openRowMenu(tb, +tr.dataset.r, e.clientX, e.clientY); }
+});
+const gridItem = (ctx, label, c = '', danger = false) => `<button role="menuitem" data-ctx="${ctx}" data-c="${c}"${danger ? ' class="danger"' : ''}>${esc(label)}</button>`;
+function openColMenu(tb, c, x, y) {
+  commitEdit(false);
+  const s = selOf(tb), R = selRect(s);
+  const inSel = (R.ra === 0 && R.rb === tb.rows - 1 && c >= R.ca && c <= R.cb) || s.extra.includes(tb.cols[c].id);
+  if (!inSel) { s.c0 = s.c1 = c; s.r0 = 0; s.r1 = tb.rows - 1; s.extra = []; selChanged(tb, false); }
+  const n = selectedCols(tb).length;
+  showCtxMenu(gridItem('colrename', t('hc_rename'), c) + '<hr>' + gridItem('colbefore', t('hc_before')) + gridItem('colafter', t('hc_after')) +
+    '<hr>' + gridItem('coldel', t('hc_del', { n }), '', true), x, y);
+}
+function openRowMenu(tb, r, x, y) {
+  commitEdit(false);
+  const s = selOf(tb), R = selRect(s);
+  const inSel = r >= R.ra && r <= R.rb && R.ca === 0 && R.cb === tb.cols.length - 1 && !s.extra.length;
+  if (!inSel) { s.r0 = s.r1 = r; s.c0 = 0; s.c1 = tb.cols.length - 1; s.extra = []; selChanged(tb, false); }
+  const { n } = selectedRows(tb), k = n === tb.rows ? 1 : n;
+  showCtxMenu(gridItem('rowabove', t('rc_above', { n: k })) + gridItem('rowbelow', t('rc_below', { n: k })) +
+    '<hr>' + gridItem('rowdel', t('rc_del', { n }), '', true), x, y);
+}
+function gridCtxCommand(cmd, c) {
+  const tb = activeTable();
+  if (!tb) return;
+  const cols = selectedCols(tb), { ra, rb, n } = selectedRows(tb), k = n === tb.rows ? 1 : n;
+  if (cmd === 'colrename') editHeader(c, false);
+  else if (cmd === 'colbefore' || cmd === 'colafter') {
+    // La columna nueva se crea con nombre de letra y se abre su nombre para escribir otro.
+    const i = cmd === 'colbefore' ? tb.cols.indexOf(cols[0]) : tb.cols.indexOf(cols[cols.length - 1]) + 1;
+    editHeader(insertCol(tb, i), false);
+  } else if (cmd === 'coldel') deleteCols(tb);
+  else if (cmd === 'rowabove') insertRows(tb, ra, k, true);
+  else if (cmd === 'rowbelow') insertRows(tb, rb + 1, k, true);
+  else if (cmd === 'rowdel') deleteRows(tb);
+}
+
 // Doble clic en la cabecera: se edita ahí mismo el nombre (o la unidad, si se pulsa en ella).
 // Enter o salir del campo guarda; Esc cancela.
 function editHeader(ci, unit) {
@@ -749,32 +850,38 @@ $('tblRows').addEventListener('change', async (e) => {
   afterDataChange();
   syncTablePanels();
 });
-$('btnAddCol').addEventListener('click', () => {
-  const tb = activeTable();
-  if (!tb) return;
-  const c = makeCol(nextColName(tb), 'Y', tb.rows);
-  const i = tb.cols.length ? selRect(selOf(tb)).cb + 1 : 0;
-  tb.cols.splice(i, 0, c);
+// Columna Y vacía en la posición i, seleccionada. Devuelve i.
+function insertCol(tb, i) {
+  tb.cols.splice(i, 0, makeCol(nextColName(tb), 'Y', tb.rows));
   const s = selOf(tb);
   s.c0 = s.c1 = i; s.r0 = s.r1 = 0; s.extra = [];
   hist.commit();
   afterDataChange();
   ensureVisible(tb, 0, i);
+  return i;
+}
+// k filas vacías a partir de la fila r (y, si se pide, seleccionadas).
+function insertRows(tb, r, k, select = false) {
+  for (const c of tb.cols) c.data.splice(r, 0, ...new Array(k).fill(null));
+  tb.rows += k;
+  if (select) { const s = selOf(tb); s.r0 = r; s.r1 = r + k - 1; s.c0 = 0; s.c1 = tb.cols.length - 1; s.extra = []; }
+  hist.commit();
+  afterDataChange();
+  syncTablePanels();
+}
+$('btnAddCol').addEventListener('click', () => {
+  const tb = activeTable();
+  if (tb) insertCol(tb, tb.cols.length ? selRect(selOf(tb)).cb + 1 : 0);
 });
 $('btnInsRows').addEventListener('click', () => {
   const tb = activeTable();
   if (!tb) return;
   const { ra, n } = selectedRows(tb);
-  const k = n === tb.rows ? 1 : n;
-  for (const c of tb.cols) c.data.splice(ra, 0, ...new Array(k).fill(null));
-  tb.rows += k;
-  hist.commit();
-  afterDataChange();
-  syncTablePanels();
+  insertRows(tb, ra, n === tb.rows ? 1 : n);
 });
-$('btnDelRows').addEventListener('click', () => {
-  const tb = activeTable();
-  if (!tb) return;
+$('btnDelRows').addEventListener('click', () => { const tb = activeTable(); if (tb) deleteRows(tb); });
+$('btnDelCols').addEventListener('click', () => { const tb = activeTable(); if (tb) deleteCols(tb); });
+function deleteRows(tb) {
   const { ra, n } = selectedRows(tb);
   for (const c of tb.cols) c.data.splice(ra, n);
   tb.rows -= n;
@@ -784,10 +891,8 @@ $('btnDelRows').addEventListener('click', () => {
   hist.commit();
   afterDataChange();
   syncTablePanels();
-});
-$('btnDelCols').addEventListener('click', async () => {
-  const tb = activeTable();
-  if (!tb) return;
+}
+async function deleteCols(tb) {
   const cols = selectedCols(tb);
   const ids = new Set(cols.map((c) => c.id));
   const used = graphsList().some((g) => g.curves.some((c) => c.table === tb.id && [c.xc, c.yc, c.ye, c.xe].some((id) => ids.has(id))));
@@ -805,7 +910,7 @@ $('btnDelCols').addEventListener('click', async () => {
   pruneCurves();
   hist.commit();
   afterDataChange();
-});
+}
 $('btnCsv').addEventListener('click', () => { const tb = activeTable(); if (tb) { commitEdit(false); exportCsv(tb); } });
 
 // Tabla de ejemplo: oscilación amortiguada con ruido y su error, ya en una gráfica.

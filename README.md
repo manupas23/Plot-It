@@ -11,6 +11,7 @@ Open `index.html` in Chrome, Edge or Firefox.
 1. **Get data into a table.**
    - Click a cell and type (`Enter` / `Tab` move on, `F2` or a double-click edits a cell). Decimal commas are accepted.
    - Paste from Excel, LibreOffice or SciDAVis with `Ctrl+V`. If you paste at row 1 and the first line holds titles, they become the column names.
+   - Right-click a column header or a row number to insert or delete columns and rows, and drag a header to move its column.
    - Or **Import data** (or drop files onto the page): CSV, TXT, DAT and LAMMPS logs, see [Import](#import).
 2. **Set the column roles.** Each column is X, Y, X error, Y error or none (*Column* panel). A Y column is plotted against the nearest X column on its left, and takes the error columns that follow it. Columns named `err`, `sd`, `sigma`, `x_err`… or `dE` right after `E` are marked as Y errors on import.
 3. **Compute new columns** with a formula (*Set values from a formula*), sort, normalize, differentiate or integrate (*Operations*). The *Statistics* panel summarises the selection.
@@ -191,6 +192,9 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste (tab-separated, compatible with spreadsheets) |
 | `Ctrl+A` | Select the whole table |
 | Double-click a column name or unit | Edit it in place (`Enter` saves, `Esc` cancels, `Tab` goes to the next column) |
+| Drag a column header | Move the column, or the selected block of columns (`Esc` cancels; `Shift`+drag selects a range) |
+| Right-click a column header | Rename, new column to the left / right, delete |
+| Right-click a row number | New row above / below, delete (as many rows as are selected) |
 | Wheel, drag, double-click | Zoom, pan and autoscale a graph |
 | Double-click on the axes or margins | Graph format |
 | Right-click on a graph | Analysis and Graph menus, open or save the image |

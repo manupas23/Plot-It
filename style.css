@@ -166,6 +166,12 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .role.r-Y { color: #199e70; }
 .role.r-xErr, .role.r-yErr { color: #c98500; }
 .role.r-none { color: var(--text-muted); }
+/* Mover columnas arrastrando su cabecera. */
+.grid thead th { cursor: grab; }
+.grid thead th.moving { opacity: .5; }
+body.col-moving, body.col-moving * { cursor: grabbing !important; user-select: none; }
+.colmark { position: absolute; width: 3px; background: var(--accent); border-radius: 2px; z-index: 6; pointer-events: none; }
+.colmark[hidden] { display: none; }
 .grid thead th .rs { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 4; }
 .celledit {
   position: absolute; z-index: 5; border: 0; outline: 2px solid var(--accent); border-radius: 0;
@@ -339,6 +345,7 @@ dialog.ask p:empty { display: none; }
 .menu-list button:hover:not(:disabled), .menu-list button:focus-visible { background: var(--sel); outline: none; }
 .menu-list button:disabled { color: var(--text-muted); cursor: default; }
 .menu-list hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+.menu-list button.danger { color: var(--danger); }
 /* Menú contextual de la gráfica, con submenús que se abren a un lado. */
 .menu-list.ctx { position: fixed; top: 0; left: 0; z-index: 60; }
 .ctx .ctx-sub { position: relative; }

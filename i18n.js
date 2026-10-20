@@ -382,6 +382,13 @@ const I18N = {
     mg_svg: 'Exportar SVG',
     ctx_open: 'Abrir imagen en una pestaña nueva',
     m_view: 'Ver',
+    hc_rename: 'Cambiar el nombre',
+    hc_before: 'Columna nueva a la izquierda',
+    hc_after: 'Columna nueva a la derecha',
+    hc_del: ({ n }) => (n === 1 ? 'Borrar la columna' : `Borrar ${n} columnas`),
+    rc_above: ({ n }) => (n === 1 ? 'Fila nueva encima' : `${n} filas nuevas encima`),
+    rc_below: ({ n }) => (n === 1 ? 'Fila nueva debajo' : `${n} filas nuevas debajo`),
+    rc_del: ({ n }) => (n === 1 ? 'Borrar la fila' : `Borrar ${n} filas`),
     mv_split: 'Dos pestañas a la vez',
     mv_swap: 'Intercambiar los lados',
     split_t: 'Ver dos pestañas a la vez (pantalla dividida)',
@@ -469,6 +476,7 @@ const I18N = {
     <li>Haz clic en una celda y escribe; <kbd>Enter</kbd> y <kbd>Tab</kbd> pasan a la siguiente. <kbd>F2</kbd> o doble clic edita la celda; <kbd>Supr</kbd> borra la selección.</li>
     <li>Copia y pega con Excel, LibreOffice o SciDAVis (<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd>). Si pegas en la fila 1 con una línea de títulos, se usan como nombres de columna. Se acepta la coma decimal.</li>
     <li>Clic en una cabecera selecciona la columna (<kbd>Mayús</kbd> para un rango, <kbd>Ctrl</kbd> para sueltas); doble clic en el nombre o en la unidad los cambia ahí mismo. El borde derecho de la cabecera cambia el ancho.</li>
+    <li>Arrastrar una cabecera mueve la columna (o las columnas seleccionadas); <kbd>Mayús</kbd>+arrastrar selecciona un rango. Clic derecho en una cabecera: cambiar el nombre, columna nueva a la izquierda o a la derecha, borrar. Clic derecho en el número de una fila: fila nueva encima o debajo, borrar.</li>
     <li>Cada columna tiene un papel: X, Y, error de X, error de Y o ninguno. Una Y se dibuja frente a la X de su izquierda, con los errores que tenga a su derecha.</li>
     </ul>
     <h3>Fórmulas</h3>
@@ -880,6 +888,13 @@ const I18N = {
     mg_svg: 'Export SVG',
     ctx_open: 'Open image in new tab',
     m_view: 'View',
+    hc_rename: 'Rename',
+    hc_before: 'New column to the left',
+    hc_after: 'New column to the right',
+    hc_del: ({ n }) => (n === 1 ? 'Delete column' : `Delete ${n} columns`),
+    rc_above: ({ n }) => (n === 1 ? 'New row above' : `${n} new rows above`),
+    rc_below: ({ n }) => (n === 1 ? 'New row below' : `${n} new rows below`),
+    rc_del: ({ n }) => (n === 1 ? 'Delete row' : `Delete ${n} rows`),
     mv_split: 'Two tabs side by side',
     mv_swap: 'Swap sides',
     split_t: 'Show two tabs side by side (split screen)',
@@ -966,6 +981,7 @@ const I18N = {
     <li>Click a cell and type; <kbd>Enter</kbd> and <kbd>Tab</kbd> move on. <kbd>F2</kbd> or double-click edits the cell; <kbd>Del</kbd> clears the selection.</li>
     <li>Copy and paste with Excel, LibreOffice or SciDAVis (<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd>). Pasting at row 1 with a line of titles uses them as column names. Decimal commas are accepted.</li>
     <li>Clicking a header selects the column (<kbd>Shift</kbd> for a range, <kbd>Ctrl</kbd> for separate ones); double-click the name or the unit to change it in place. Drag the right edge of a header to resize.</li>
+    <li>Drag a header to move the column (or the selected columns); <kbd>Shift</kbd>+drag selects a range. Right-click a header: rename, new column to the left or right, delete. Right-click a row number: new row above or below, delete.</li>
     <li>Each column has a role: X, Y, X error, Y error or none. A Y column is plotted against the X on its left, with the error columns on its right.</li>
     </ul>
     <h3>Formulas</h3>

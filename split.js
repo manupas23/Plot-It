@@ -149,10 +149,13 @@ slotSide.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   sideActivate(e);
 });
-// Clic derecho: se activa y, si es una gráfica, sale su menú contextual.
+// Clic derecho: se activa y sale el menú de lo pulsado (la gráfica, una columna o una fila).
 slotSide.addEventListener('contextmenu', (e) => {
   e.preventDefault();
-  if (sideActivate(e) && activeGraph()) openCtxMenu(e.clientX, e.clientY);
+  if (!sideActivate(e)) return;
+  if (activeGraph()) { openCtxMenu(e.clientX, e.clientY); return; }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  if (el && gridEl.contains(el)) el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
 });
 // La rueda sobre la gráfica de al lado la activa; los siguientes giros ya hacen zoom en ella.
 gview2.addEventListener('wheel', (e) => { e.preventDefault(); sideActivate(e); }, { passive: false });
