@@ -1355,6 +1355,37 @@ function runFit() {
   graphRender();
 }
 
+// Ajuste rápido desde el menú contextual de la gráfica: el modelo elegido, con valores iniciales
+// estimados, sobre la curva seleccionada (o los datos de un ajuste seleccionado). El resto de
+// opciones (grado, intervalo, pesos) son las del panel. "Personalizado" abre el panel.
+function quickFit(model) {
+  const g = activeGraph();
+  if (!g) return;
+  const F = fitState(g);
+  const cur = g.curves.find((c) => c.id === UI.curve.get(g.id));
+  const dataId = cur && (cur.kind === 'data' ? cur.id : cur.fitOf);
+  if (dataId != null && g.curves.some((c) => c.id === dataId && c.kind === 'data')) F.curve = dataId;
+  F.model = model;
+  if (model === 'custom') {
+    syncFitPanel();
+    const p = document.querySelector('.panel[data-p="fit"]');
+    if (p) p.open = true;
+    // Si el panel estaba plegado, su contenido no admite el foco hasta que acaba de abrirse.
+    const focusExpr = () => { $('fitExpr').focus(); $('fitExpr').select(); };
+    focusExpr();
+    if (document.activeElement !== $('fitExpr')) setTimeout(focusExpr, 300);
+    return;
+  }
+  F.expr = modelExpr(F);
+  guessParams(g, F);
+  syncFitPanel();
+  const t0 = Date.now();
+  runFit();
+  if (F.error) { toast(F.error, 6000); return; }
+  const fc = fitSelected(g);
+  if (fc && fc.fit && fc.fit.time >= t0) toast(`${fc.fit.model}: R² = ${fmtNum(fc.fit.r2, 5)}`, 4000);
+}
+
 // Tabla con x, y, el valor del ajuste y el residuo de cada punto ajustado.
 function fitToTable() {
   const g = activeGraph();

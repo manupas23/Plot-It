@@ -448,7 +448,7 @@ dialog.ask p:empty { display: none; }
 .ctx .ctx-sub.open > button { background: var(--sel); }
 .ctx .ctx-sub > .menu-list { display: none; top: -5px; left: calc(100% + 2px); }
 .ctx .ctx-sub.open > .menu-list { display: flex; }
-.ctx.flip .sub > .menu-list { left: auto; right: calc(100% + 2px); }
+.ctx.flip .ctx-sub > .menu-list { left: auto; right: calc(100% + 2px); }
 
 /* Diálogos de análisis y de formato. */
 dialog.an { max-width: 520px; }

@@ -79,8 +79,12 @@ gview.addEventListener('contextmenu', (e) => {
 });
 function openCtxMenu(x, y) {
   const [an, gr] = menubar.querySelectorAll('.menu-list');
-  const sub = (label, list) => `<div class="ctx-sub"><button role="menuitem" aria-haspopup="menu">${esc(label)}</button><div class="menu-list" role="menu">${list.innerHTML}</div></div>`;
-  showCtxMenu(sub(t('m_analysis'), an) + sub(t('m_graph'), gr) + '<hr>' +
+  const sub = (label, html) => `<div class="ctx-sub"><button role="menuitem" aria-haspopup="menu">${esc(label)}</button><div class="menu-list" role="menu">${html}</div></div>`;
+  // Ajuste rápido: los mismos modelos que el panel de ajuste, sin tener que abrirlo.
+  const g = activeGraph(), deg = g ? fitState(g).deg : 2;
+  const fits = [...$('fitModel').options].map((o) =>
+    `<button role="menuitem" data-qfit="${o.value}">${esc(o.value === 'poly' ? `${o.textContent} (${deg})` : o.textContent)}</button>`).join('');
+  showCtxMenu(sub(t('m_analysis'), sub(t('ctx_quickfit'), fits) + '<hr>' + an.innerHTML) + sub(t('m_graph'), gr.innerHTML) + '<hr>' +
     `<button role="menuitem" data-ctx="open">${esc(t('ctx_open'))}</button>` +
     `<button role="menuitem" data-ctx="save">${esc(t('ctx_save'))}</button>`, x, y);
 }
@@ -94,12 +98,14 @@ function showCtxMenu(html, x, y) {
   const left = Math.min(x, innerWidth - r.width - 4), top = Math.min(y, innerHeight - r.height - 4);
   ctxMenu.style.left = Math.max(4, left) + 'px';
   ctxMenu.style.top = Math.max(4, top) + 'px';
-  ctxMenu.classList.toggle('flip', left + 2 * r.width + 40 > innerWidth);
+  const levels = ctxMenu.querySelector('.ctx-sub .ctx-sub') ? 3 : 2;
+  ctxMenu.classList.toggle('flip', left + levels * r.width + 40 > innerWidth);
   ctxMenu.querySelector('button').focus({ preventScroll: true });
 }
 function closeCtxMenu() { ctxMenu.hidden = true; }
+// Abre `sub` y deja abiertos los submenús que lo contienen (puede haber uno dentro de otro).
 function openSub(sub) {
-  ctxMenu.querySelectorAll('.ctx-sub').forEach((s) => s.classList.toggle('open', s === sub));
+  ctxMenu.querySelectorAll('.ctx-sub').forEach((s) => s.classList.toggle('open', !!sub && s.contains(sub)));
   if (!sub) return;
   // El submenú no debe salirse por abajo.
   const list = sub.querySelector('.menu-list');
@@ -120,7 +126,8 @@ ctxMenu.addEventListener('click', (e) => {
   if (item.parentElement.classList.contains('ctx-sub')) { openSub(item.parentElement); item.nextElementSibling.querySelector('button').focus(); return; }
   closeCtxMenu();
   const g = activeGraph();
-  if (item.dataset.an) openAnalysis(item.dataset.an);
+  if (item.dataset.qfit) quickFit(item.dataset.qfit);
+  else if (item.dataset.an) openAnalysis(item.dataset.an);
   else if (item.dataset.cmd) menuCommand(item.dataset.cmd);
   else if (item.dataset.ctx === 'open' && g) openImageTab(g);
   else if (item.dataset.ctx === 'save' && g) saveImageAs(g);
@@ -147,7 +154,7 @@ ctxMenu.addEventListener('keydown', (e) => {
   } else if (e.key === 'ArrowLeft' && level !== ctxMenu) {
     e.preventDefault();
     const s = level.parentElement;
-    openSub(null);
+    openSub(s.parentElement.closest('.ctx-sub'));
     s.firstElementChild.focus();
   }
 });
