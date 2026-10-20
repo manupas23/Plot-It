@@ -121,6 +121,8 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .panes.anim .slot { transition: flex-grow .34s cubic-bezier(.2, .8, .2, 1); }
 .panes.split .slot { border-top: 2px solid transparent; }
 .panes.split .slot.focus { border-top-color: var(--accent); }
+/* La ventana sin foco, un poco más oscura. */
+.panes.split .slot.side { filter: brightness(.92); }
 .splitter { order: 1; flex: none; width: 6px; cursor: col-resize; background: var(--border); outline: none; transition: background-color .15s; }
 .splitter:hover, .splitter:focus-visible, .splitter.drag { background: var(--accent); }
 .slot.side .toolbar { gap: 8px; cursor: pointer; }

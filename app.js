@@ -34,12 +34,17 @@ function renderAll() {
     graphRender();
   }
   renderSide();
-  if (shownView != null && shownView !== w.id && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // Fundido al cambiar de vista, pero no al pasar de una ventana a otra en pantalla doble: las dos
+  // ya se estaban viendo, y repetido deprisa parpadea.
+  const focus = UI.split ? UI.split.focus : null;
+  const paneSwitch = focus !== null && shownFocus !== null && focus !== shownFocus;
+  if (shownView != null && shownView !== w.id && !paneSwitch && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     $(isT ? 'tablePane' : 'graphPane').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
   }
   shownView = w.id;
+  shownFocus = focus;
 }
-let shownView = null;
+let shownView = null, shownFocus = null;
 
 gridWrap.addEventListener('scroll', () => {
   const tb = activeTable();

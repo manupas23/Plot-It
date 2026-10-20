@@ -557,9 +557,15 @@ function renderTabs() {
   const bars = [[$('tabs'), groupWins(fg), P.active]];
   if (S) bars.push([$('tabs2'), groupWins(1 - fg), S.act[1 - fg]]);
   else $('tabs2').innerHTML = ''; // sin pestañas viejas ocultas con los mismos ids
-  for (const [el, ws, act] of bars) {
+  // Al cambiar de ventana activa los grupos se intercambian las barras: cada una se compara con lo
+  // que tenía la otra, para no animar pestañas que no se han ido a ninguna parte.
+  const swapped = S && renderTabs.fg != null && renderTabs.fg !== fg;
+  renderTabs.fg = S ? fg : null;
+  const before = [$('tabs'), $('tabs2')].map((el) => [...el.querySelectorAll('.tab[data-id]')]);
+  bars.forEach((b, k) => b.push(before[swapped ? 1 - k : k]));
+  for (const [el, ws, act, old] of bars) {
     // La pestaña que se va (cerrada o pasada a la otra ventana) sale encogiéndose.
-    const old = [...el.querySelectorAll('.tab[data-id]')], ids = new Set(ws.map((w) => w.id));
+    const ids = new Set(ws.map((w) => w.id));
     const lost = old.filter((tb) => !ids.has(+tb.dataset.id));
     el.innerHTML = ws.map((w) => tabHtml(w, w.id === act)).join('');
     if (lost.length === 1 && seenTabs.size) {
