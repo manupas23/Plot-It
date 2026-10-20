@@ -508,8 +508,19 @@ const tabHtml = (w, active) => `<div class="tab${active ? ' active' : ''}" role=
 const seenTabs = new Set();
 function renderTabs() {
   const S = UI.split, fg = S ? S.focus : 0;
-  $('tabs').innerHTML = groupWins(fg).map((w) => tabHtml(w, w.id === P.active)).join('');
-  if (S) $('tabs2').innerHTML = groupWins(1 - fg).map((w) => tabHtml(w, w.id === S.act[1 - fg])).join('');
+  const bars = [[$('tabs'), groupWins(fg), P.active]];
+  if (S) bars.push([$('tabs2'), groupWins(1 - fg), S.act[1 - fg]]);
+  for (const [el, ws, act] of bars) {
+    // La pestaña que se va (cerrada o pasada a la otra ventana) sale encogiéndose.
+    const old = [...el.querySelectorAll('.tab[data-id]')], ids = new Set(ws.map((w) => w.id));
+    const lost = old.filter((tb) => !ids.has(+tb.dataset.id));
+    el.innerHTML = ws.map((w) => tabHtml(w, w.id === act)).join('');
+    if (lost.length === 1 && seenTabs.size) {
+      const i = old.indexOf(lost[0]);
+      const next = old.slice(i + 1).map((tb) => el.querySelector(`.tab[data-id="${tb.dataset.id}"]`)).find(Boolean);
+      shrinkTab(el, lost[0], next || null);
+    }
+  }
   // Una pestaña recién creada entra creciendo y empuja a la derecha los botones que la siguen
   // (no al arrancar ni al abrir un proyecto, que traen muchas a la vez).
   const fresh = P.wins.filter((w) => !seenTabs.has(w.id));
@@ -520,6 +531,20 @@ function renderTabs() {
     const cur = el.querySelector('.tab.active');
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
+}
+
+function shrinkTab(bar, el, before) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  el.removeAttribute('data-id');
+  el.querySelectorAll('[data-close]').forEach((b) => b.removeAttribute('data-close'));
+  el.classList.add('leaving');
+  bar.insertBefore(el, before);
+  const cs = getComputedStyle(el), w = el.getBoundingClientRect().width;
+  el.style.overflow = 'hidden';
+  el.animate([
+    { width: `${w}px`, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, opacity: 1 },
+    { width: '0px', paddingLeft: '0px', paddingRight: '0px', opacity: 0 },
+  ], { duration: 220, easing: 'cubic-bezier(.4, 0, .2, 1)' }).onfinish = () => el.remove();
 }
 
 function growTab(el) {

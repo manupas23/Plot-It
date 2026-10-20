@@ -58,6 +58,7 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
   background: var(--surface-2); color: var(--text-primary); font: inherit; cursor: pointer; user-select: none; line-height: 20px;
 }
 .btn:hover:not(:disabled) { border-color: var(--text-muted); }
+.btn, .tab, .tab .tx, .menu-btn, .menu-list button, .fitrow { transition: background-color .14s, border-color .14s, color .14s, opacity .14s; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.small { padding: 4px 10px; font-size: 13px; }
@@ -139,6 +140,7 @@ kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 
 .slot.side .tab.active .ti { color: var(--text-muted); }
 /* Arrastrar pestañas: la original queda tenue, una copia sigue al ratón y una raya marca el hueco. */
 .tab.dragging { opacity: .35; }
+.tab.leaving { pointer-events: none; margin-left: 0; margin-right: 0; }
 .tab.ghost { position: fixed; top: 0; left: 0; z-index: 80; pointer-events: none; background: var(--surface-1); border: 1px solid var(--accent); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
 .tabmark { position: fixed; width: 2px; background: var(--accent); border-radius: 1px; z-index: 79; pointer-events: none; }
 .tabmark[hidden] { display: none; }
@@ -151,7 +153,6 @@ body.tab-moving, body.tab-moving * { cursor: grabbing !important; user-select: n
 }
 .split-preview.show { opacity: 1; transform: none; }
 .split-preview span { background: var(--surface-1); padding: 6px 12px; border-radius: 7px; border: 1px solid var(--accent); }
-@media (prefers-reduced-motion: reduce) { .split-preview, .panes.anim .slot { transition: none; } }
 #sidePane.graph { background: var(--stage); overflow: hidden; }
 .menu-list button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: 16px; color: var(--accent); }
 @media (max-width: 1100px) {
@@ -236,6 +237,13 @@ body.col-moving, body.col-moving * { cursor: grabbing !important; user-select: n
 .panel > summary::-webkit-details-marker { display: none; }
 .panel > summary::before { content: "▸"; color: var(--text-muted); transition: transform .15s; }
 .panel[open] > summary::before { transform: rotate(90deg); }
+/* Abrir y cerrar un panel desliza su contenido (la altura pasa de 0 a auto). */
+.panel { interpolate-size: allow-keywords; }
+.panel::details-content {
+  display: flow-root; block-size: 0; overflow-y: clip; opacity: 0;
+  transition: block-size .26s cubic-bezier(.2, .8, .2, 1), opacity .2s ease, content-visibility .26s allow-discrete;
+}
+.panel[open]::details-content { block-size: auto; opacity: 1; }
 .panel > :last-child { margin-bottom: 12px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-bottom: 8px; }
 .grid2 label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
@@ -366,6 +374,17 @@ dialog {
   background: var(--surface-1); color: var(--text-primary); padding: 18px 22px;
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
+/* Todos los diálogos entran y salen con un fundido y un pequeño desplazamiento; el fondo oscuro también. */
+dialog {
+  opacity: 0; transform: translateY(8px) scale(.985);
+  transition: opacity .18s ease, transform .18s ease, overlay .18s allow-discrete, display .18s allow-discrete;
+}
+dialog[open] { opacity: 1; transform: none; }
+dialog:not([open]) { pointer-events: none; }
+@starting-style { dialog[open] { opacity: 0; transform: translateY(8px) scale(.985); } }
+dialog::backdrop { transition: background-color .18s ease, overlay .18s allow-discrete, display .18s allow-discrete; }
+dialog:not([open])::backdrop { background: rgba(0,0,0,0); }
+@starting-style { dialog[open]::backdrop { background: rgba(0,0,0,0); } }
 dialog h2 { margin-top: 0; }
 dialog h3 { margin-bottom: 6px; }
 dialog li { margin-bottom: 4px; }
@@ -375,8 +394,6 @@ dialog form { text-align: right; margin-top: 12px; }
 
 /* Diálogos de confirmación propios (en lugar de confirm() del navegador). */
 dialog.ask { max-width: 440px; padding: 20px 22px 18px; box-shadow: 0 18px 50px rgba(0,0,0,.45); }
-dialog.ask[open] { animation: ask-in .14s ease-out; }
-@keyframes ask-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 dialog.ask h2 { font-size: 16px; margin: 0 0 8px; }
 dialog.ask p { margin: 0 0 6px; color: var(--text-secondary); }
 dialog.ask p.muted { font-size: 12.5px; color: var(--text-muted); }
@@ -389,7 +406,10 @@ dialog.ask p:empty { display: none; }
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); max-width: calc(100% - 32px);
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary);
   padding: 9px 16px; border-radius: 9px; box-shadow: 0 8px 24px rgba(0,0,0,.35); z-index: 30;
+  transition: opacity .22s ease, transform .22s ease, display .22s allow-discrete;
 }
+.toast[hidden] { display: none; opacity: 0; transform: translate(-50%, 8px); }
+@starting-style { .toast:not([hidden]) { opacity: 0; transform: translate(-50%, 8px); } }
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: minmax(380px, 62vh) auto; }
@@ -411,6 +431,8 @@ dialog.ask p:empty { display: none; }
   box-shadow: 0 12px 32px rgba(0,0,0,.4);
 }
 .menu-list[hidden] { display: none; }
+.menu-list:not([hidden]) { animation: menu-in .13s ease-out; transform-origin: top left; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.985); } }
 .menu-list button {
   text-align: left; border: 0; background: none; color: var(--text-primary); font: inherit; padding: 6px 10px; border-radius: 6px; cursor: pointer;
 }
@@ -457,3 +479,9 @@ dialog.fmt::backdrop { background: rgba(0,0,0,.12); }
 .ocolor input[type=color]:disabled { opacity: .35; }
 .ocolor .chk { font-size: 12px; margin: 0; }
 input[type=color] { width: 44px; height: 28px; padding: 1px 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
+
+/* Sin movimiento si el sistema lo pide (al final, para que gane a las transiciones de arriba). */
+@media (prefers-reduced-motion: reduce) {
+  .split-preview, .panes.anim .slot, .panel::details-content, dialog, dialog::backdrop, .toast { transition: none; }
+  .menu-list:not([hidden]) { animation: none; }
+}

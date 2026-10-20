@@ -34,7 +34,12 @@ function renderAll() {
     graphRender();
   }
   renderSide();
+  if (shownView != null && shownView !== w.id && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    $(isT ? 'tablePane' : 'graphPane').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
+  }
+  shownView = w.id;
 }
+let shownView = null;
 
 gridWrap.addEventListener('scroll', () => {
   const tb = activeTable();

@@ -120,10 +120,16 @@ function animateSplitOpen() {
   clearTimeout(splitAnimTimer);
   splitAnimTimer = setTimeout(() => panes.classList.remove('anim'), 400);
 }
+let splitClosing = false;
 function splitClose() {
-  if (!UI.split) return;
-  UI.split = null;
-  renderAll();
+  if (!UI.split || splitClosing) return;
+  const done = () => { splitClosing = false; panes.classList.remove('anim'); UI.split = null; renderAll(); };
+  if (reducedMotion()) { done(); return; }
+  splitClosing = true;
+  panes.classList.add('anim');
+  slotMain.style.flexGrow = 1;
+  slotSide.style.flexGrow = 0;
+  setTimeout(done, 300);
 }
 // Botón y menú Ver: la pestaña que mejor acompaña a la activa pasa a una ventana nueva.
 function splitToggle() {

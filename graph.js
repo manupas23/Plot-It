@@ -1293,6 +1293,11 @@ function renderFitResults(g, F) {
   }
   if (cur) h += fitCardHtml(g, cur);
   $('fitResults').innerHTML = h;
+  const card = $('fitResults').querySelector('.fitcard');
+  if (card && renderFitResults.shown !== cur.id && renderFitResults.shown != null && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    card.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'ease-out' });
+  }
+  renderFitResults.shown = cur ? cur.id : null;
   $('fitActions').hidden = !cur;
   $('btnFitTable').disabled = !cur || !g.curves.some((c) => c.id === cur.fitOf);
 }
