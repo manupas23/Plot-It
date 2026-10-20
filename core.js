@@ -16,6 +16,7 @@ const UI = {
   sel: new Map(),   // id de tabla → selección { r0, c0 (ancla), r1, c1 (extremo), extra: [ids de columna] }
   curve: new Map(), // id de gráfica → id de la curva seleccionada
   fit: new Map(),   // id de gráfica → estado del panel de ajuste
+  fitSel: new Map(), // id de gráfica → id de la curva de ajuste cuyo resultado se ve
   plotStyle: 'scatter',
   split: null,      // pantalla dividida: { right: [ids de la derecha], act: [activa izq, dcha], focus: 0 | 1, ratio, known }
 };
@@ -484,8 +485,6 @@ function openProject(file) {
 function logResult(text) {
   P.log.push({ time: new Date().toISOString(), text });
   renderLog();
-  const p = document.querySelector('.panel[data-p="log"]');
-  if (p) p.open = true;
 }
 function renderLog() {
   const el = $('logOut');

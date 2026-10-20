@@ -304,12 +304,51 @@ table.params td { padding: 2px 4px; }
 table.params td:first-child { font-family: ui-monospace, Consolas, monospace; width: 22%; }
 table.params td:last-child { width: 1%; text-align: center; }
 table.params input[type=checkbox] { accent-color: var(--accent); }
-.fitout, .log {
+.log {
   font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text-secondary);
   white-space: pre-wrap; word-break: break-word; margin: 8px 0 0;
 }
-.fitout:empty { display: none; }
-.fitout { padding: 8px 10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; }
+/* Resultado de un ajuste: parámetros grandes y alineados, indicadores aparte, detalles en pequeño. */
+.fitres:empty { display: none; }
+.fitres { margin-top: 10px; }
+.fitres .err { margin: 0 0 8px; }
+.fitlist-h { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.fitlist { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.fitrow {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; text-align: left; cursor: pointer;
+  font: inherit; font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.fitrow:hover { background: var(--surface-2); }
+.fitrow.sel { color: var(--text-primary); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-1)); }
+.fitrow .fl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fitrow .fr { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--text-muted); }
+.sw { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.fitcard { padding: 10px 12px 9px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; }
+.fc-head { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; }
+.fc-head b { flex: none; font-weight: 650; color: var(--text-primary); }
+.fc-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.fc-expr { margin: 3px 0 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--text-secondary); word-break: break-word; }
+table.fc-params { width: 100%; border-collapse: collapse; font-family: ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; }
+table.fc-params th { padding: 0 0 3px 8px; text-align: right; font-family: inherit; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+table.fc-params th:first-child { padding-left: 0; text-align: left; font-family: system-ui, sans-serif; }
+table.fc-params th:not(:first-child) { font-family: system-ui, sans-serif; }
+table.fc-params td { padding: 5px 0 5px 8px; text-align: right; white-space: nowrap; border-top: 1px solid var(--border); }
+table.fc-params td.pn { padding-left: 0; text-align: left; font-size: 14px; font-weight: 600; color: var(--accent); }
+td.pv { font-size: 15px; font-weight: 600; color: var(--text-primary); cursor: copy; }
+td.pv:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+td.pe { font-size: 13px; color: var(--text-secondary); }
+td.pr { font-size: 11.5px; color: var(--text-muted); }
+td.pr.bad { color: var(--danger); }
+.fc-params .pow { font-size: .85em; }
+.fc-params sup { font-size: .75em; }
+.fc-params .badge { padding: 0 6px; font-family: system-ui, sans-serif; font-size: 11px; color: var(--text-muted); border: 1px solid var(--border); border-radius: 9px; }
+.fc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 7px; }
+.fc-stats div { min-width: 0; padding: 5px 8px; background: var(--surface-2); border-radius: 6px; }
+.fc-stats span { display: block; font-size: 11px; color: var(--text-muted); }
+.fc-stats b { font-family: ui-monospace, Consolas, monospace; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.fc-meta, .fc-note { margin: 3px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
+.fc-note.warn { color: var(--danger); }
 .log { max-height: 320px; overflow: auto; padding: 8px 10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; }
 .log:empty::before { content: attr(data-empty); color: var(--text-muted); }
 

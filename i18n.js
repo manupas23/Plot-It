@@ -210,6 +210,19 @@ const I18N = {
     fit_converged: 'Convergió en {n} iteraciones.',
     fit_not_converged: 'No ha convergido en {n} iteraciones: revisa el resultado o los valores iniciales.',
     fit_label: 'Ajuste',
+    fit_results: 'Ajustes de esta gráfica ({n})',
+    fit_value: 'Valor',
+    fit_error: 'Error',
+    fit_rel: 'Rel.',
+    fit_rel_t: 'Error relativo',
+    fit_redchi_t: 'Chi cuadrado reducido; cerca de 1 en un ajuste pesado que concuerda con los errores',
+    fit_r2_t: 'Coeficiente de determinación',
+    fit_rmse_t: 'Raíz del error cuadrático medio de los residuos',
+    fit_copy_val: 'Clic para copiar el valor con todas sus cifras',
+    fit_copy_t: 'Copiar el resultado como texto',
+    fit_del: 'Borrar ajuste',
+    fit_del_t: 'Quitar este ajuste y su curva (se puede deshacer)',
+    fit_edited: 'La expresión de la curva ha cambiado después del ajuste.',
 
     // Ejes
     p_axes: 'Ejes y diseño',
@@ -508,7 +521,7 @@ const I18N = {
     <h3>Ajustes</h3>
     <ul>
     <li>Elige los datos y el modelo, o escribe el tuyo: cualquier nombre que no sea <code>x</code> es un parámetro. <kbd>Mayús</kbd>+arrastrar en la gráfica limita el intervalo.</li>
-    <li>Levenberg–Marquardt, pesado con 1/σ² si hay errores de Y. Se dan los parámetros con su error, χ²/ν, R² y RMSE; el resultado va también al registro.</li>
+    <li>Levenberg–Marquardt, pesado con 1/σ² si hay errores de Y. Se dan los parámetros con su error, χ²/ν, R² y RMSE. Cada ajuste queda guardado con su curva: si hay varios, se elige en la lista cuál ver, sin repetirlo. Un clic en un valor lo copia con todas sus cifras. Con otro intervalo de x, el ajuste se guarda aparte. El texto va también al registro, que solo se abre a mano.</li>
     </ul>
     <h3>Análisis</h3>
     <ul>
@@ -728,6 +741,19 @@ const I18N = {
     fit_converged: 'Converged in {n} iterations.',
     fit_not_converged: 'Did not converge in {n} iterations: check the result or the initial values.',
     fit_label: 'Fit',
+    fit_results: 'Fits on this graph ({n})',
+    fit_value: 'Value',
+    fit_error: 'Error',
+    fit_rel: 'Rel.',
+    fit_rel_t: 'Relative error',
+    fit_redchi_t: 'Reduced chi-squared; close to 1 in a weighted fit that agrees with the errors',
+    fit_r2_t: 'Coefficient of determination',
+    fit_rmse_t: 'Root mean square of the residuals',
+    fit_copy_val: 'Click to copy the value with all its digits',
+    fit_copy_t: 'Copy the result as text',
+    fit_del: 'Delete fit',
+    fit_del_t: 'Remove this fit and its curve (can be undone)',
+    fit_edited: 'The curve expression has changed since the fit.',
 
     p_axes: 'Axes and layout',
     g_title: 'Title',
@@ -1021,7 +1047,7 @@ const I18N = {
     <h3>Fits</h3>
     <ul>
     <li>Choose the data and the model, or write your own: every name other than <code>x</code> is a parameter. <kbd>Shift</kbd>+drag on the graph limits the range.</li>
-    <li>Levenberg–Marquardt, weighted with 1/σ² when there are Y errors. You get the parameters with their errors, χ²/ν, R² and RMSE; the result also goes to the log.</li>
+    <li>Levenberg–Marquardt, weighted with 1/σ² when there are Y errors. You get the parameters with their errors, χ²/ν, R² and RMSE. Each fit is kept with its curve: when there are several, pick in the list which one to see, without fitting again. Click a value to copy it with all its digits. A fit over another x range is kept separately. The text also goes to the log, which only opens by hand.</li>
     </ul>
     <h3>Analysis</h3>
     <ul>

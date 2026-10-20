@@ -978,6 +978,7 @@ $('curveList').addEventListener('click', (e) => {
   if (e.target.dataset.k === 'vis' || e.target.dataset.k === 'color') return;
   UI.curve.set(g.id, id);
   if (c.kind === 'data') { const F = fitState(g); if (F.curve !== id) { F.curve = id; guessParams(g, F); } }
+  if (c.fit) UI.fitSel.set(g.id, id);
   syncGraphPanels();
 });
 $('curveList').addEventListener('change', (e) => {
@@ -1136,8 +1137,7 @@ function syncFitPanel() {
   $('fitWeight').disabled = !(D && D.hasErr);
   $('fitWeight').closest('label').title = D && D.hasErr ? (D.sigOk ? '' : t('fit_err_zero')) : t('fit_weight_none');
   $('btnFit').disabled = $('btnGuess').disabled = !data.length;
-  $('fitOut').textContent = F.result || '';
-  $('fitActions').hidden = !F.result;
+  renderFitResults(g, F);
 }
 
 function renderParams(g, F) {
@@ -1152,42 +1152,114 @@ function renderParams(g, F) {
     : '';
 }
 
-// Valor ± error redondeados a dos cifras significativas del error.
-function fmtPM(v, e) {
-  if (!isFinite(e) || e <= 0) return `${fmtNum(v, 8)}${e === 0 ? '' : ' ± ?'}`;
+// Valor y error redondeados a dos cifras significativas del error; si son muy grandes o muy
+// pequeños, con la potencia de diez aparte (ex).
+function pmParts(v, e) {
+  if (!Number.isFinite(e) || e <= 0) return { v: fmtNum(v, 8), e: e === 0 ? null : '?', ex: null };
   const ev = Math.floor(Math.log10(e));
   const av = Math.abs(v);
   if (av >= 1e-3 && av < 1e6 && e >= 1e-6) {
     const dec = clamp(1 - ev, 0, 12);
-    return minusSign(v.toFixed(dec)) + ' ± ' + e.toFixed(dec);
+    return { v: minusSign(v.toFixed(dec)), e: e.toFixed(dec), ex: null };
   }
   const ex = av > 0 ? Math.floor(Math.log10(av)) : ev;
   const sc = Math.pow(10, ex), dec = clamp(1 - (ev - ex), 0, 12);
-  return `(${minusSign((v / sc).toFixed(dec))} ± ${(e / sc).toFixed(dec)})e${ex}`;
+  return { v: minusSign((v / sc).toFixed(dec)), e: (e / sc).toFixed(dec), ex };
+}
+function fmtPM(v, e) {
+  const q = pmParts(v, e);
+  if (q.e == null) return q.v;
+  return q.ex == null ? `${q.v} ± ${q.e}` : `(${q.v} ± ${q.e})e${q.ex}`;
+}
+const fin = (v, f) => (Number.isFinite(v) ? f(v) : '–');
+
+/* ---------- resultados guardados ---------- */
+
+// Cada ajuste guarda su resultado en su curva (fc.fit), así que se puede volver a consultar sin
+// repetirlo, se guarda con el proyecto y desaparece si se borra la curva.
+const fitCurves = (g) => g.curves.filter((c) => c.kind === 'func' && c.fit);
+function fitSelected(g) {
+  const fs = fitCurves(g);
+  return fs.find((c) => c.id === UI.fitSel.get(g.id)) || fs.reduce((a, c) => (!a || c.fit.time > a.fit.time ? c : a), null);
+}
+// Nombre del ajuste: el modelo y, si se limitó el intervalo de x, ese intervalo.
+function fitName(fc) {
+  const R = fc.fit, lim = R.range && (R.range[0] != null || R.range[1] != null);
+  return R.model + (lim ? ` [${fmtNum(R.x0, 4)}, ${fmtNum(R.x1, 4)}]` : '');
+}
+function fitSrc(g, fc) {
+  const d = g.curves.find((c) => c.id === fc.fitOf);
+  return d ? curveLabel(g, d) : fc.fit.src;
 }
 
-function fitReport(g, F, D, names, res) {
-  const w = Math.max(...names.map((n) => n.length));
+function fitText(g, fc) {
+  const R = fc.fit, w = Math.max(...R.names.map((n) => n.length));
   const lines = [
-    `${g.name} · ${curveLabel(g, D.c)} · ${modelName(F)}`,
-    `y = ${F.expr}`,
-    `${t('fit_npts', { n: res.n })}, x ∈ [${fmtNum(D.x[0])}, ${fmtNum(D.x[D.x.length - 1])}] · ${res.weighted ? t('fit_weighted') : t('fit_unweighted')}`,
+    `${g.name} · ${fitSrc(g, fc)} · ${R.model}`,
+    `y = ${R.expr}`,
+    `${t('fit_npts', { n: R.n })}, x ∈ [${fmtNum(R.x0)}, ${fmtNum(R.x1)}] · ${R.weighted ? t('fit_weighted') : t('fit_unweighted')}`,
     '',
-    ...names.map((n, j) => `  ${n.padEnd(w)} = ${res.err[j] === 0 && F.fixed[n] ? fmtNum(res.p[j], 8) + `  (${t('fit_fixed').toLowerCase()})` : fmtPM(res.p[j], res.err[j])}`),
+    ...R.names.map((n, j) => `  ${n.padEnd(w)} = ${R.fixed[j] ? fmtNum(R.p[j], 8) + `  (${t('fit_fixed').toLowerCase()})` : fmtPM(R.p[j], R.err[j])}`),
     '',
-    `χ²/ν = ${fmtNum(res.redchi2, 5)}   (χ² = ${fmtNum(res.chi2, 5)}, ν = ${res.dof})`,
-    `R² = ${isFinite(res.r2) ? res.r2.toFixed(6) : '–'}   R²adj = ${isFinite(res.adjr2) ? res.adjr2.toFixed(6) : '–'}   RMSE = ${fmtNum(res.rmse, 5)}`,
+    `χ²/ν = ${fmtNum(R.redchi2, 5)}   (χ² = ${fmtNum(R.chi2, 5)}, ν = ${R.dof})`,
+    `R² = ${fin(R.r2, (v) => v.toFixed(6))}   R²adj = ${fin(R.adjr2, (v) => v.toFixed(6))}   RMSE = ${fmtNum(R.rmse, 5)}`,
   ];
-  if (!res.weighted) lines.push(t('fit_err_note'));
-  lines.push(res.converged ? t('fit_converged', { n: res.iter }) : t('fit_not_converged', { n: res.iter }));
+  if (!R.weighted) lines.push(t('fit_err_note'));
+  lines.push(R.converged ? t('fit_converged', { n: R.iter }) : t('fit_not_converged', { n: R.iter }));
   return lines.join('\n');
+}
+
+function fitCardHtml(g, fc) {
+  const R = fc.fit;
+  const pow = (ex) => (ex == null ? '' : `<span class="pow">×10<sup>${minusSign(String(ex))}</sup></span>`);
+  const rows = R.names.map((n, j) => {
+    const v = R.p[j], e = R.err[j];
+    const full = esc(String(+v.toPrecision(10)));
+    if (R.fixed[j]) {
+      return `<tr><td class="pn">${esc(n)}</td><td class="pv" data-n="${esc(n)}" data-v="${full}" title="${esc(t('fit_copy_val'))}">${esc(fmtNum(v, 8))}</td>` +
+        `<td class="pe"><span class="badge">${esc(t('fit_fixed').toLowerCase())}</span></td><td class="pr"></td></tr>`;
+    }
+    const q = pmParts(v, e);
+    const rel = Number.isFinite(e) && e > 0 && v !== 0 ? Math.abs(e / v) * 100 : null;
+    const relTxt = rel == null ? '' : `${rel < 10 ? rel.toFixed(1) : Math.round(rel)} %`;
+    return `<tr><td class="pn">${esc(n)}</td><td class="pv" data-n="${esc(n)}" data-v="${full}" title="${esc(t('fit_copy_val'))}">${esc(q.v)}${pow(q.ex)}</td>` +
+      `<td class="pe">${q.e == null ? '' : `± ${esc(q.e)}${pow(q.ex)}`}</td><td class="pr${rel > 50 ? ' bad' : ''}">${relTxt}</td></tr>`;
+  }).join('');
+  const stat = (k, v, tip) => `<div title="${esc(tip)}"><span>${k}</span><b>${esc(v)}</b></div>`;
+  const notes = [];
+  if (!R.weighted) notes.push(esc(t('fit_err_note')));
+  notes.push(esc(R.converged ? t('fit_converged', { n: R.iter }) : t('fit_not_converged', { n: R.iter })));
+  const edited = fc.expr !== R.expr;
+  return `<div class="fitcard">
+    <div class="fc-head"><span class="sw" style="background:${esc(fc.color)}"></span><b>${esc(fitName(fc))}</b><span class="fc-src">· ${esc(fitSrc(g, fc))}</span></div>
+    <div class="fc-expr">y = ${esc(R.expr)}</div>
+    <table class="fc-params"><thead><tr><th>${esc(t('fit_param'))}</th><th>${esc(t('fit_value'))}</th><th>${esc(t('fit_error'))}</th><th title="${esc(t('fit_rel_t'))}">${esc(t('fit_rel'))}</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="fc-stats">${stat('χ²/ν', fmtNum(R.redchi2, 4), t('fit_redchi_t'))}${stat('R²', fin(R.r2, (v) => v.toFixed(4)), t('fit_r2_t'))}${stat('RMSE', fmtNum(R.rmse, 4), t('fit_rmse_t'))}</div>
+    <p class="fc-meta">${esc(t('fit_npts', { n: R.n }))} · x ∈ [${esc(fmtNum(R.x0))}, ${esc(fmtNum(R.x1))}] · ${esc(R.weighted ? t('fit_weighted') : t('fit_unweighted'))}<br>χ² = ${esc(fmtNum(R.chi2, 5))} · ν = ${R.dof} · R²adj = ${esc(fin(R.adjr2, (v) => v.toFixed(4)))}</p>
+    <p class="fc-note${R.converged ? '' : ' warn'}">${notes.join(' ')}</p>
+    ${edited ? `<p class="fc-note warn">${esc(t('fit_edited'))}</p>` : ''}
+  </div>`;
+}
+
+function renderFitResults(g, F) {
+  const fs = fitCurves(g), cur = fitSelected(g);
+  let h = F.error ? `<p class="err">${esc(F.error)}</p>` : '';
+  if (fs.length > 1) {
+    h += `<p class="fitlist-h">${esc(t('fit_results', { n: fs.length }))}</p><div class="fitlist">` +
+      fs.map((c) => `<button type="button" class="fitrow${c === cur ? ' sel' : ''}" data-fit="${c.id}" aria-pressed="${c === cur}">` +
+        `<span class="sw" style="background:${esc(c.color)}"></span><span class="fl">${esc(fitName(c))} · ${esc(fitSrc(g, c))}</span>` +
+        `<span class="fr">R² ${esc(fin(c.fit.r2, (v) => v.toFixed(3)))}</span></button>`).join('') + '</div>';
+  }
+  if (cur) h += fitCardHtml(g, cur);
+  $('fitResults').innerHTML = h;
+  $('fitActions').hidden = !cur;
+  $('btnFitTable').disabled = !cur || !g.curves.some((c) => c.id === cur.fitOf);
 }
 
 function runFit() {
   const g = activeGraph();
   if (!g) return;
   const F = fitState(g);
-  const out = $('fitOut');
   let names;
   try { names = fitNames(F.expr); } catch (e) { toast(exprErrText(e), 5000); return; }
   if (!names.length) { toast(t('fit_no_params'), 5000); return; }
@@ -1196,6 +1268,7 @@ function runFit() {
   catch (e) { toast(exprErrText(e), 5000); return; }
   const D = fitData(g, F);
   if (!D || !D.x.length) { toast(t('fit_no_points'), 5000); return; }
+  F.error = null;
   const buf = new Float64Array(names.length + 1);
   const f = (x, p) => { buf[0] = x; for (let j = 0; j < p.length; j++) buf[j + 1] = p[j]; return fn(buf); };
   const p0 = names.map((n) => (isFinite(F.init[n]) ? +F.init[n] : 1));
@@ -1203,16 +1276,16 @@ function runFit() {
   if (useW && !D.sigOk) { toast(t('fit_err_zero'), 6000); return; }
   const res = lmFit({ f, x: D.x, y: D.y, sig: useW ? D.sig : null, p0, fixed: names.map((n) => !!F.fixed[n]) });
   if (res.error) {
-    F.result = t('fit_fail_' + res.error, { n: res.need });
-    out.textContent = F.result;
-    $('fitActions').hidden = true;
+    F.error = t('fit_fail_' + res.error, { n: res.need });
+    renderFitResults(g, F);
     return;
   }
   names.forEach((n, j) => { F.init[n] = res.p[j]; });
-  F.result = fitReport(g, F, D, names, res);
-  F.last = { names, p: res.p, curve: D.c.id };
-  // Curva del ajuste: se sustituye la anterior del mismo modelo sobre los mismos datos.
-  let fc = g.curves.find((c) => c.kind === 'func' && c.fitOf === D.c.id && c.expr === F.expr);
+  // Curva del ajuste: se sustituye la anterior del mismo modelo sobre los mismos datos y el mismo
+  // intervalo; con otro intervalo es otro ajuste y se guarda aparte.
+  const range = [F.xmin ?? null, F.xmax ?? null];
+  const sameRange = (c) => { const r = (c.fit && c.fit.range) || [null, null]; return r[0] === range[0] && r[1] === range[1]; };
+  let fc = g.curves.find((c) => c.kind === 'func' && c.fitOf === D.c.id && c.expr === F.expr && sameRange(c));
   if (!fc) {
     fc = { id: nid(), kind: 'func', fitOf: D.c.id, model: F.model, expr: F.expr, params: {}, n: 400, label: '', style: 'line', color: nextColor(g), width: 2, dash: 'solid', hidden: false };
     g.curves.push(fc);
@@ -1221,8 +1294,16 @@ function runFit() {
   fc.xmin = D.x[0];
   fc.xmax = D.x[D.x.length - 1];
   fc.model = F.model;
-  fc.label = `${t('fit_label')}: ${modelName(F)}`;
-  logResult(F.result);
+  const x0 = D.x[0], x1 = D.x[D.x.length - 1];
+  fc.label = `${t('fit_label')}: ${modelName(F)}` + (range[0] != null || range[1] != null ? ` [${fmtNum(x0, 4)}, ${fmtNum(x1, 4)}]` : '');
+  fc.fit = {
+    src: curveLabel(g, D.c), model: modelName(F), expr: F.expr, names, p: Array.from(res.p), err: Array.from(res.err),
+    fixed: names.map((n) => !!F.fixed[n]), n: res.n, x0, x1, range, weighted: res.weighted,
+    chi2: res.chi2, redchi2: res.redchi2, dof: res.dof, r2: res.r2, adjr2: res.adjr2, rmse: res.rmse,
+    converged: res.converged, iter: res.iter, time: Date.now(),
+  };
+  UI.fitSel.set(g.id, fc.id);
+  logResult(fitText(g, fc));
   hist.commit();
   syncGraphPanels();
   graphRender();
@@ -1231,11 +1312,11 @@ function runFit() {
 // Tabla con x, y, el valor del ajuste y el residuo de cada punto ajustado.
 function fitToTable() {
   const g = activeGraph();
-  const F = g && fitState(g);
-  if (!F || !F.last) return;
-  const fc = g.curves.find((c) => c.kind === 'func' && c.fitOf === F.last.curve && c.expr === F.expr);
-  const D = fitData(g, { ...F, curve: F.last.curve });
-  if (!fc || !D) return;
+  const fc = g && fitSelected(g);
+  if (!fc) return;
+  const [xmin, xmax] = fc.fit.range || [null, null];
+  const D = fitData(g, { curve: fc.fitOf, xmin, xmax });
+  if (!D) return;
   const f = funcOf(fc).f;
   const tb = win(D.c.table), xc = colById(tb, D.c.xc), yc = colById(tb, D.c.yc);
   const cx = makeCol(xc ? xc.name : 'i', 'X'), cy = makeCol(yc.name, 'Y'), cf = makeCol('fit', 'Y'), cr = makeCol('residual', 'Y');
@@ -1296,10 +1377,29 @@ $('fitWeight').addEventListener('change', (e) => { fitState(activeGraph()).weigh
 $('btnGuess').addEventListener('click', () => { const g = activeGraph(); guessParams(g, fitState(g)); syncFitPanel(); });
 $('btnFit').addEventListener('click', runFit);
 $('btnFitCopy').addEventListener('click', () => {
-  const F = fitState(activeGraph());
-  if (F.result) navigator.clipboard.writeText(F.result).then(() => toast(t('copied')), () => toast(t('copy_fail')));
+  const g = activeGraph(), fc = g && fitSelected(g);
+  if (fc) navigator.clipboard.writeText(fitText(g, fc)).then(() => toast(t('copied')), () => toast(t('copy_fail')));
 });
 $('btnFitTable').addEventListener('click', fitToTable);
+$('btnFitDel').addEventListener('click', () => {
+  const g = activeGraph(), fc = g && fitSelected(g);
+  if (!fc) return;
+  g.curves = g.curves.filter((c) => c !== fc);
+  UI.fitSel.delete(g.id);
+  pruneCurves();
+  hist.commit();
+  syncGraphPanels();
+  graphRender();
+});
+// Elegir qué ajuste se ve; clic en un valor: se copia con todas sus cifras.
+$('fitResults').addEventListener('click', (e) => {
+  const g = activeGraph();
+  if (!g) return;
+  const row = e.target.closest('.fitrow');
+  if (row) { UI.fitSel.set(g.id, +row.dataset.fit); renderFitResults(g, fitState(g)); return; }
+  const pv = e.target.closest('.pv');
+  if (pv) navigator.clipboard.writeText(pv.dataset.v).then(() => toast(`${pv.dataset.n} = ${pv.dataset.v} · ${t('copied').toLowerCase()}`), () => toast(t('copy_fail')));
+});
 
 /* ---------- panel de ejes ---------- */
 
