@@ -2,8 +2,8 @@
 // split.js: pantalla dividida al estilo de VS Code. Hay una o dos ventanas, cada una con sus
 // pestañas, y cada pestaña está en una sola. La ventana con el foco es la normal (con su barra,
 // sus paneles y el ratón); la otra se dibuja aquí solo para verla, y un clic en ella le pasa el
-// foco. Las pestañas se ordenan y se cambian de ventana arrastrándolas; llevar una más allá de
-// los dos tercios de la anchura abre la segunda ventana.
+// foco. Las pestañas se ordenan y se cambian de ventana arrastrándolas; llevar una a la zona que
+// ocuparía la segunda ventana la abre.
 
 const panes = $('panes'), slotMain = $('slotMain'), slotSide = $('slotSide'), splitter = $('splitter');
 const sidePane = $('sidePane'), gview2 = $('gview2'), gv2ctx = gview2.getContext('2d');
@@ -294,10 +294,17 @@ document.body.appendChild(tabMark);
 const splitPreview = $('splitPreview');
 let tabDrag = null, swallowClick = false;
 
-// Más allá de la segunda de las dos rayas que dividen la zona de trabajo en tres.
+// Sitio que ocuparía la segunda ventana: a la derecha (o debajo), con el reparto del último uso.
+function newPaneRect() {
+  const p = panes.getBoundingClientRect();
+  return narrowScreen()
+    ? { left: p.left, top: p.top + p.height * splitRatio, width: p.width, height: p.height * (1 - splitRatio) }
+    : { left: p.left + p.width * splitRatio, top: p.top, width: p.width * (1 - splitRatio), height: p.height };
+}
+// Dentro de ese sitio: ahí se ofrece abrirla.
 function pastSplitEdge(x, y) {
-  const r = panes.getBoundingClientRect();
-  return narrowScreen() ? y > r.top + r.height * 2 / 3 : x > r.left + r.width * 2 / 3;
+  const r = newPaneRect();
+  return narrowScreen() ? y > r.top : x > r.left;
 }
 const inRect = (x, y, r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 // Dónde caería la pestaña id: en una barra de pestañas (y delante de cuál), en la otra ventana o
@@ -327,9 +334,7 @@ function showDropFeedback(T) {
   if (!tabMark.hidden) Object.assign(tabMark.style, { left: `${T.x}px`, top: `${T.top}px`, height: `${T.h}px` });
   let r = null, text = '';
   if (T && T.kind === 'new') {
-    const p = panes.getBoundingClientRect();
-    r = narrowScreen() ? { left: p.left, top: p.top + p.height / 2, width: p.width, height: p.height / 2 }
-      : { left: p.left + p.width / 2, top: p.top, width: p.width / 2, height: p.height };
+    r = newPaneRect();
     text = t('split_drop');
   } else if (T && T.kind === 'group') {
     r = T.slot.getBoundingClientRect();

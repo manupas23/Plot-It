@@ -556,6 +556,7 @@ function renderTabs() {
   const S = UI.split, fg = S ? S.focus : 0;
   const bars = [[$('tabs'), groupWins(fg), P.active]];
   if (S) bars.push([$('tabs2'), groupWins(1 - fg), S.act[1 - fg]]);
+  else $('tabs2').innerHTML = ''; // sin pestañas viejas ocultas con los mismos ids
   for (const [el, ws, act] of bars) {
     // La pestaña que se va (cerrada o pasada a la otra ventana) sale encogiéndose.
     const old = [...el.querySelectorAll('.tab[data-id]')], ids = new Set(ws.map((w) => w.id));

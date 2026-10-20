@@ -519,7 +519,7 @@ const I18N = {
     <h3>Pestañas</h3>
     <ul>
     <li>Doble clic: cambiar el nombre; clic con la rueda: cerrar; arrastrar: cambiar el orden. Clic derecho: abrir al lado o pasar a la otra ventana, cambiar el nombre o cerrar.</li>
-    <li>Dos ventanas, cada una con sus pestañas: arrastra una pestaña más allá de los dos tercios de la anchura y suéltala en el recuadro punteado, o usa el botón junto a <b>+ Gráfica</b> o el menú <b>Ver</b>. Las pestañas pasan de una ventana a otra arrastrándolas; si una se queda vacía, se vuelve a una sola. Se trabaja en la que tiene la raya azul y un clic en la otra le pasa el foco. La barra del medio reparte el espacio (doble clic: mitad y mitad).</li>
+    <li>Dos ventanas, cada una con sus pestañas: arrastra una pestaña a la mitad derecha (donde irá la ventana nueva) y suéltala en el recuadro punteado, o usa el botón junto a <b>+ Gráfica</b> o el menú <b>Ver</b>. Las pestañas pasan de una ventana a otra arrastrándolas; si una se queda vacía, se vuelve a una sola. Se trabaja en la que tiene la raya azul y un clic en la otra le pasa el foco. La barra del medio reparte el espacio (doble clic: mitad y mitad).</li>
     </ul>
     <h3>Ajustes</h3>
     <ul>
@@ -1048,7 +1048,7 @@ const I18N = {
     <h3>Tabs</h3>
     <ul>
     <li>Double-click: rename; middle-click: close; drag: reorder. Right-click: open beside or move to the other window, rename or close.</li>
-    <li>Two windows, each with its own tabs: drag a tab past two thirds of the width and drop it on the dashed box, or use the button next to <b>+ Graph</b> or the <b>View</b> menu. Tabs move between windows by dragging; when one window is left empty, you are back to one. You work in the one with the blue line, and a click on the other one gives it the focus. The bar in the middle shares the space (double-click: half and half).</li>
+    <li>Two windows, each with its own tabs: drag a tab into the right half (where the new window will go) and drop it on the dashed box, or use the button next to <b>+ Graph</b> or the <b>View</b> menu. Tabs move between windows by dragging; when one window is left empty, you are back to one. You work in the one with the blue line, and a click on the other one gives it the focus. The bar in the middle shares the space (double-click: half and half).</li>
     </ul>
     <h3>Fits</h3>
     <ul>
