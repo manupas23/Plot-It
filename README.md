@@ -66,7 +66,7 @@ Each built-in model estimates its own initial values from the data (*Guess* reco
 |---|---|
 | Axes (X and Y side by side) | title, range, log scale, tick step, number of minor ticks, ticks in, out, crossing the axis or none, ticks also on the opposite side, numbers automatic, decimal or scientific ($\times 10^n$), number of decimals, hide the numbers |
 | Frame and grid | closed box, X and Y axes only or no frame; axis line width; tick length; major and minor grid and its colour |
-| Text and legend | title, font (Arial, Helvetica, Calibri, Verdana, Times, Georgia, monospace), font size, relative sizes of the title, tick numbers and legend, legend position and frame |
+| Text and legend | title, font (Arial, Helvetica, Calibri, Verdana, Times, Georgia, monospace, or LaTeX: Computer Modern, which comes with the app and is embedded in exported SVG files), font size, relative sizes of the title, tick numbers and legend, legend position and frame |
 | Page | width and height in pixels, background colour or transparent background (PNG and SVG) |
 
 *Graph → Curve format* (or *More options…* in *Curves*) edits one curve at a time: style (points, line, line and points, bars), 12 symbols (circle, square, triangles in four directions, diamond, cross, plus, star, pentagon, hexagon), solid or hollow, fill colour and opacity, edge width, points joined with straight lines, steps or a smooth curve (Catmull–Rom spline through the points), line width and dash, error-bar width, cap and colour, and bar width as a fraction of the spacing between points.
@@ -206,3 +206,7 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | `?` | Help |
 
 Double-click a tab to rename it; middle-click to close it; drag it to reorder it or to move it to the other window; right-click it to open it beside, move it to the other window, rename it or close it.
+
+## Fonts
+
+The *LaTeX* font of the graphs is CMU Serif (Computer Modern Unicode, by Andrey V. Panov, after the Computer Modern of Donald Knuth), taken from the `computer-modern` npm package and released under the SIL Open Font License (`fonts/OFL.txt`).

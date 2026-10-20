@@ -60,7 +60,36 @@ function richParse(s) {
 const FAMILIES = {
   Arial: 'Arial, Helvetica, sans-serif', Helvetica: 'Helvetica, Arial, sans-serif', Calibri: 'Calibri, Carlito, sans-serif',
   Verdana: 'Verdana, sans-serif', Times: 'Times New Roman, Times, serif', Georgia: 'Georgia, serif', Mono: 'Consolas, Courier New, monospace',
+  LaTeX: 'CMU Serif, Latin Modern Roman, Times New Roman, serif',
 };
+// La letra de LaTeX (CMU Serif: Computer Modern con griego) viene con la app, en fonts/cmu-serif.js, y
+// se carga la primera vez que una gráfica la usa; mientras llega, se dibuja con la siguiente de la lista.
+const LATEX_FONT = 'CMU Serif';
+let latexFont = null; // promesa de la carga
+function loadLatexFont() {
+  if (!latexFont) {
+    latexFont = new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = 'fonts/cmu-serif.js';
+      s.onload = async () => {
+        try {
+          for (const [w, b64] of Object.entries(window.CMU_SERIF)) {
+            const bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+            document.fonts.add(await new FontFace(LATEX_FONT, bin.buffer, { weight: w }).load());
+          }
+        } catch (e) { /* sin la letra: se usa la siguiente de la lista */ }
+        resolve();
+        graphRender();
+        renderSide();
+      };
+      s.onerror = () => resolve();
+      document.head.append(s);
+    });
+  }
+  return latexFont;
+}
+// Antes de exportar, la letra de la gráfica tiene que estar cargada.
+const graphFontReady = (g) => (g.family === 'LaTeX' ? loadLatexFont() : Promise.resolve());
 let fontCur = FONT; // familia de la gráfica que se está dibujando
 function setFont(ctx, px, weight = 400) { ctx.font = `${weight} ${px}px ${fontCur}`; }
 
@@ -347,6 +376,7 @@ function drawGraph(ctx, g0, W, H) {
   const fs = g.font, lx = ax.log, ly = ay.log;
   const ink = '#111';
   fontCur = FAMILIES[g.family] || FONT;
+  if (g.family === 'LaTeX') loadLatexFont();
   ctx.save();
   if (g.bg !== 'none') { ctx.fillStyle = g.bg; ctx.fillRect(0, 0, W, H); }
 
@@ -616,6 +646,7 @@ class SvgCtx {
     this.globalAlpha = 1; this.lineJoin = 'miter'; this.lineCap = 'butt'; this.textAlign = 'left'; this.textBaseline = 'alphabetic';
     this.dash = []; this.clipId = null; this.m = [1, 0, 0, 1, 0, 0]; this.d = '';
     this.meas = document.createElement('canvas').getContext('2d');
+    this.latex = new Set(); // pesos de la letra LaTeX usados: se incrustan en el SVG
   }
   save() {
     const { fillStyle, strokeStyle, lineWidth, font, globalAlpha, lineJoin, lineCap, dash, clipId } = this;
@@ -655,13 +686,18 @@ class SvgCtx {
     const size = +(/([\d.]+)px/.exec(this.font) || [0, 10])[1];
     const weight = (/^(\d{3}|bold)/.exec(this.font) || [0, '400'])[1];
     const family = this.font.replace(/^\S+\s+[\d.]+px\s+/, '');
+    if (family.startsWith(LATEX_FONT)) this.latex.add(weight);
     const m = this.m;
     const plain = m[0] === 1 && m[1] === 0 && m[2] === 0 && m[3] === 1;
     const pos = plain ? ` x="${r2(x + m[4])}" y="${r2(y + m[5])}"` : ` x="${r2(x)}" y="${r2(y)}" transform="matrix(${m.map((v) => +v.toFixed(6)).join(' ')})"`;
     this.out.push(`<text${pos} font-size="${r2(size)}"${family !== FONT ? ` font-family="${esc(family)}"` : ''}${weight !== '400' ? ` font-weight="${weight}"` : ''} fill="${this.fillStyle}"${this.extra()}>${esc(s.replace(/ /g, ' '))}</text>`);
   }
   toString() {
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${this.W}" height="${this.H}" viewBox="0 0 ${this.W} ${this.H}" font-family="${FONT}" xml:space="preserve">\n<defs>${this.defs.join('')}</defs>\n${this.out.join('\n')}\n</svg>\n`;
+    // La letra LaTeX no está instalada en casi ningún equipo: va dentro del SVG.
+    const fonts = window.CMU_SERIF ? [...this.latex].filter((w) => CMU_SERIF[w]).map((w) =>
+      `@font-face{font-family:'${LATEX_FONT}';font-weight:${w};src:url(data:font/woff2;base64,${CMU_SERIF[w]}) format('woff2')}`).join('') : '';
+    const style = fonts ? `<style>${fonts}</style>` : '';
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${this.W}" height="${this.H}" viewBox="0 0 ${this.W} ${this.H}" font-family="${FONT}" xml:space="preserve">\n<defs>${style}${this.defs.join('')}</defs>\n${this.out.join('\n')}\n</svg>\n`;
   }
 }
 
@@ -681,10 +717,12 @@ function svgString(g) {
   drawGraph(ctx, g, g.W, g.H);
   return ctx.toString();
 }
-function exportPng(g) {
+async function exportPng(g) {
+  await graphFontReady(g);
   pngCanvas(g).toBlob((b) => download(fileSafe(g.name) + '.png', b), 'image/png');
 }
-function exportSvg(g) {
+async function exportSvg(g) {
+  await graphFontReady(g);
   download(fileSafe(g.name) + '.svg', svgString(g), 'image/svg+xml');
 }
 

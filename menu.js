@@ -156,9 +156,10 @@ window.addEventListener('resize', closeCtxMenu);
 
 // La imagen PNG en una pestaña nueva (la ventana se abre ya, dentro del clic, para que el
 // navegador no la bloquee). El fondo a cuadros deja ver si la gráfica es transparente.
-function openImageTab(g) {
+async function openImageTab(g) {
   const w = window.open('', '_blank');
   if (!w) { toast(t('ctx_blocked'), 5000); return; }
+  await graphFontReady(g);
   const url = pngCanvas(g).toDataURL('image/png');
   w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(g.name)}.png</title>` +
     '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#2a2a2a">' +
@@ -181,6 +182,7 @@ async function saveImageAs(g) {
     return;
   }
   try {
+    await graphFontReady(g);
     const data = /\.svg$/i.test(h.name)
       ? new Blob([svgString(g)], { type: 'image/svg+xml' })
       : await new Promise((res) => pngCanvas(g).toBlob(res, 'image/png'));
@@ -646,7 +648,7 @@ function gfAxisRows() {
   ];
 }
 function gfOtherFields() {
-  const fam = Object.keys(FAMILIES).map((k) => [k, k === 'Times' ? 'Times New Roman' : k === 'Mono' ? 'Consolas' : k]);
+  const fam = Object.keys(FAMILIES).map((k) => [k, k === 'Times' ? 'Times New Roman' : k === 'Mono' ? 'Consolas' : k === 'LaTeX' ? 'LaTeX (Computer Modern)' : k]);
   return {
     frame: [
       { k: 'frame', type: 'sel', label: t('fmt_frame'), opts: ['box', 'axes', 'none'].map((k) => [k, t('fr_' + k)]) },

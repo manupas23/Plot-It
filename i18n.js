@@ -512,7 +512,7 @@ const I18N = {
     <li>Selecciona las columnas Y y pulsa <b>Representar</b>, o añade datos y funciones en el panel Curvas.</li>
     <li>Rueda: zoom (<kbd>Mayús</kbd> solo en x, <kbd>Alt</kbd> solo en y). Arrastrar: desplazar. Doble clic o <kbd>A</kbd>: autoescala; doble clic en los ejes o los márgenes: formato de la gráfica. Al pasar sobre un punto se ve su valor.</li>
     <li>Clic derecho: los menús Análisis y Gráfica, abrir la imagen en una pestaña nueva y guardarla como PNG o SVG. Si se pulsa sobre un punto, su curva queda seleccionada.</li>
-    <li>La hoja blanca es lo que se exporta a PNG o SVG, con su tamaño y su letra (panel Ejes). En los textos, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
+    <li>La hoja blanca es lo que se exporta a PNG o SVG, con su tamaño y su letra (panel Ejes). En los textos, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>… En <b>Formato de la gráfica</b>, la letra <b>LaTeX (Computer Modern)</b> es la de los artículos hechos con LaTeX; viene con la app y va dentro de los SVG exportados.</li>
     </ul>
     <h3>Pestañas</h3>
     <ul>
@@ -1039,7 +1039,7 @@ const I18N = {
     <li>Select the Y columns and press <b>Plot</b>, or add data and functions in the Curves panel.</li>
     <li>Wheel: zoom (<kbd>Shift</kbd> x only, <kbd>Alt</kbd> y only). Drag: pan. Double-click or <kbd>A</kbd>: autoscale; double-click on the axes or margins: graph format. Hover over a point to read its value.</li>
     <li>Right-click: the Analysis and Graph menus, open the image in a new tab and save it as PNG or SVG. Right-clicking a point selects its curve.</li>
-    <li>The white page is what gets exported to PNG or SVG, with its size and font (Axes panel). In texts, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
+    <li>The white page is what gets exported to PNG or SVG, with its size and font (Axes panel). In texts, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>… In <b>Graph format</b>, the <b>LaTeX (Computer Modern)</b> font is the one of papers written in LaTeX; it comes with the app and is embedded in exported SVG files.</li>
     </ul>
     <h3>Tabs</h3>
     <ul>
