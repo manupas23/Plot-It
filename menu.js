@@ -58,6 +58,129 @@ function menuCommand(cmd) {
   else if (cmd === 'svg' && g) exportSvg(g);
 }
 
+/* ---------- menú contextual de la gráfica ---------- */
+
+// Clic derecho en la gráfica: los menús Análisis y Gráfica como submenús, y abrir la imagen en
+// una pestaña nueva o guardarla. Si el clic cae sobre un punto, su curva queda seleccionada.
+const ctxMenu = $('ctxMenu');
+gview.addEventListener('contextmenu', (e) => {
+  const g = activeGraph();
+  if (!g) return;
+  e.preventDefault();
+  stopScaleAnim();
+  $('gtip').hidden = true;
+  const hit = gGeom && nearestPoint(toPage(e));
+  if (hit && UI.curve.get(g.id) !== hit.s.c.id) { UI.curve.set(g.id, hit.s.c.id); syncCurvesPanel(); }
+  openCtxMenu(e.clientX, e.clientY);
+});
+function openCtxMenu(x, y) {
+  closeMenus();
+  const [an, gr] = menubar.querySelectorAll('.menu-list');
+  const sub = (label, list) => `<div class="ctx-sub"><button role="menuitem" aria-haspopup="menu">${esc(label)}</button><div class="menu-list" role="menu">${list.innerHTML}</div></div>`;
+  ctxMenu.innerHTML = sub(t('m_analysis'), an) + sub(t('m_graph'), gr) + '<hr>' +
+    `<button role="menuitem" data-ctx="open">${esc(t('ctx_open'))}</button>` +
+    `<button role="menuitem" data-ctx="save">${esc(t('ctx_save'))}</button>`;
+  ctxMenu.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+  ctxMenu.hidden = false;
+  // Dentro de la ventana; si no caben los submenús a la derecha, se abren a la izquierda.
+  const r = ctxMenu.getBoundingClientRect();
+  const left = Math.min(x, innerWidth - r.width - 4), top = Math.min(y, innerHeight - r.height - 4);
+  ctxMenu.style.left = Math.max(4, left) + 'px';
+  ctxMenu.style.top = Math.max(4, top) + 'px';
+  ctxMenu.classList.toggle('flip', left + 2 * r.width + 40 > innerWidth);
+  ctxMenu.querySelector('button').focus({ preventScroll: true });
+}
+function closeCtxMenu() { ctxMenu.hidden = true; }
+function openSub(sub) {
+  ctxMenu.querySelectorAll('.ctx-sub').forEach((s) => s.classList.toggle('open', s === sub));
+  if (!sub) return;
+  // El submenú no debe salirse por abajo.
+  const list = sub.querySelector('.menu-list');
+  list.style.top = '';
+  const r = list.getBoundingClientRect();
+  if (r.bottom > innerHeight - 4) list.style.top = `${-5 - (r.bottom - innerHeight + 4)}px`;
+}
+ctxMenu.addEventListener('pointerover', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const sub = b.parentElement.classList.contains('ctx-sub') ? b.parentElement : b.closest('.ctx-sub');
+  openSub(sub);
+  if (!b.disabled) b.focus({ preventScroll: true });
+});
+ctxMenu.addEventListener('click', (e) => {
+  const item = e.target.closest('button');
+  if (!item) return;
+  if (item.parentElement.classList.contains('ctx-sub')) { openSub(item.parentElement); item.nextElementSibling.querySelector('button').focus(); return; }
+  closeCtxMenu();
+  const g = activeGraph();
+  if (item.dataset.an) openAnalysis(item.dataset.an);
+  else if (item.dataset.cmd) menuCommand(item.dataset.cmd);
+  else if (item.dataset.ctx === 'open' && g) openImageTab(g);
+  else if (item.dataset.ctx === 'save' && g) saveImageAs(g);
+});
+ctxMenu.addEventListener('keydown', (e) => {
+  const b = document.activeElement, level = b && b.closest('.menu-list');
+  if (e.key === 'Escape') { e.preventDefault(); closeCtxMenu(); return; }
+  if (!level) return;
+  const items = [...level.children].map((el) => (el.classList.contains('ctx-sub') ? el.firstElementChild : el)).filter((el) => el.tagName === 'BUTTON');
+  const i = items.indexOf(b);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+  } else if (e.key === 'ArrowRight' && b.parentElement.classList.contains('ctx-sub')) {
+    e.preventDefault();
+    openSub(b.parentElement);
+    b.nextElementSibling.querySelector('button').focus();
+  } else if (e.key === 'ArrowLeft' && level !== ctxMenu) {
+    e.preventDefault();
+    const s = level.parentElement;
+    openSub(null);
+    s.firstElementChild.focus();
+  }
+});
+document.addEventListener('pointerdown', (e) => { if (!ctxMenu.hidden && !ctxMenu.contains(e.target)) closeCtxMenu(); });
+window.addEventListener('blur', closeCtxMenu);
+window.addEventListener('resize', closeCtxMenu);
+
+// La imagen PNG en una pestaña nueva (la ventana se abre ya, dentro del clic, para que el
+// navegador no la bloquee). El fondo a cuadros deja ver si la gráfica es transparente.
+function openImageTab(g) {
+  const w = window.open('', '_blank');
+  if (!w) { toast(t('ctx_blocked'), 5000); return; }
+  const url = pngCanvas(g).toDataURL('image/png');
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(g.name)}.png</title>` +
+    '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#2a2a2a">' +
+    `<img src="${url}" alt="${esc(g.name)}" width="${g.W}" style="max-width:100%;height:auto;background:repeating-conic-gradient(#e6e6e6 0 25%,#fff 0 50%) 0 0/16px 16px">`);
+  w.document.close();
+}
+
+// Guardar como: el cuadro del sistema para elegir carpeta, nombre y formato (PNG o SVG, según la
+// extensión). Si el navegador no lo tiene, se descarga el PNG como con el botón.
+async function saveImageAs(g) {
+  if (!window.showSaveFilePicker) { exportPng(g); return; }
+  let h;
+  try {
+    h = await window.showSaveFilePicker({
+      suggestedName: fileSafe(g.name) + '.png',
+      types: [{ description: 'PNG', accept: { 'image/png': ['.png'] } }, { description: 'SVG', accept: { 'image/svg+xml': ['.svg'] } }],
+    });
+  } catch (err) {
+    if (err.name !== 'AbortError') exportPng(g);
+    return;
+  }
+  try {
+    const data = /\.svg$/i.test(h.name)
+      ? new Blob([svgString(g)], { type: 'image/svg+xml' })
+      : await new Promise((res) => pngCanvas(g).toBlob(res, 'image/png'));
+    const out = await h.createWritable();
+    await out.write(data);
+    await out.close();
+    toast(t('ctx_saved', { name: h.name }), 3000);
+  } catch (err) {
+    toast(t('ctx_save_err', { msg: err.message || String(err) }), 6000);
+  }
+}
+
 /* ---------- formularios de los diálogos ---------- */
 
 // Un campo: { k, type: 'num' | 'int' | 'sel' | 'chk' | 'color' | 'ocolor' | 'text', label, opts: [[valor, texto]],

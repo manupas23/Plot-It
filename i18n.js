@@ -380,6 +380,11 @@ const I18N = {
     mg_curves_t: 'Formato de las curvas',
     mg_png: 'Exportar PNG',
     mg_svg: 'Exportar SVG',
+    ctx_open: 'Abrir imagen en una pestaña nueva',
+    ctx_save: 'Guardar imagen como…',
+    ctx_saved: 'Imagen guardada: {name}',
+    ctx_save_err: 'No se ha podido guardar la imagen: {msg}',
+    ctx_blocked: 'El navegador ha bloqueado la pestaña nueva. Permite las ventanas emergentes para esta página.',
     fmt_tab_axes: 'Ejes',
     fmt_tab_frame: 'Marco y rejilla',
     fmt_tab_text: 'Texto y leyenda',
@@ -452,7 +457,7 @@ const I18N = {
     <ul>
     <li>Haz clic en una celda y escribe; <kbd>Enter</kbd> y <kbd>Tab</kbd> pasan a la siguiente. <kbd>F2</kbd> o doble clic edita la celda; <kbd>Supr</kbd> borra la selección.</li>
     <li>Copia y pega con Excel, LibreOffice o SciDAVis (<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd>). Si pegas en la fila 1 con una línea de títulos, se usan como nombres de columna. Se acepta la coma decimal.</li>
-    <li>Clic en una cabecera selecciona la columna (<kbd>Mayús</kbd> para un rango, <kbd>Ctrl</kbd> para sueltas); doble clic, su nombre. El borde derecho de la cabecera cambia el ancho.</li>
+    <li>Clic en una cabecera selecciona la columna (<kbd>Mayús</kbd> para un rango, <kbd>Ctrl</kbd> para sueltas); doble clic en el nombre o en la unidad los cambia ahí mismo. El borde derecho de la cabecera cambia el ancho.</li>
     <li>Cada columna tiene un papel: X, Y, error de X, error de Y o ninguno. Una Y se dibuja frente a la X de su izquierda, con los errores que tenga a su derecha.</li>
     </ul>
     <h3>Fórmulas</h3>
@@ -465,6 +470,7 @@ const I18N = {
     <ul>
     <li>Selecciona las columnas Y y pulsa <b>Representar</b>, o añade datos y funciones en el panel Curvas.</li>
     <li>Rueda: zoom (<kbd>Mayús</kbd> solo en x, <kbd>Alt</kbd> solo en y). Arrastrar: desplazar. Doble clic o <kbd>A</kbd>: autoescala; doble clic en los ejes o los márgenes: formato de la gráfica. Al pasar sobre un punto se ve su valor.</li>
+    <li>Clic derecho: los menús Análisis y Gráfica, abrir la imagen en una pestaña nueva y guardarla como PNG o SVG. Si se pulsa sobre un punto, su curva queda seleccionada.</li>
     <li>La hoja blanca es lo que se exporta a PNG o SVG, con su tamaño y su letra (panel Ejes). En los textos, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
     </ul>
     <h3>Ajustes</h3>
@@ -856,6 +862,11 @@ const I18N = {
     mg_curves_t: 'Curve format',
     mg_png: 'Export PNG',
     mg_svg: 'Export SVG',
+    ctx_open: 'Open image in new tab',
+    ctx_save: 'Save image as…',
+    ctx_saved: 'Image saved: {name}',
+    ctx_save_err: 'The image could not be saved: {msg}',
+    ctx_blocked: 'The browser blocked the new tab. Allow pop-ups for this page.',
     fmt_tab_axes: 'Axes',
     fmt_tab_frame: 'Frame and grid',
     fmt_tab_text: 'Text and legend',
@@ -927,7 +938,7 @@ const I18N = {
     <ul>
     <li>Click a cell and type; <kbd>Enter</kbd> and <kbd>Tab</kbd> move on. <kbd>F2</kbd> or double-click edits the cell; <kbd>Del</kbd> clears the selection.</li>
     <li>Copy and paste with Excel, LibreOffice or SciDAVis (<kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd> / <kbd>X</kbd>). Pasting at row 1 with a line of titles uses them as column names. Decimal commas are accepted.</li>
-    <li>Clicking a header selects the column (<kbd>Shift</kbd> for a range, <kbd>Ctrl</kbd> for separate ones); double-click edits its name. Drag the right edge of a header to resize.</li>
+    <li>Clicking a header selects the column (<kbd>Shift</kbd> for a range, <kbd>Ctrl</kbd> for separate ones); double-click the name or the unit to change it in place. Drag the right edge of a header to resize.</li>
     <li>Each column has a role: X, Y, X error, Y error or none. A Y column is plotted against the X on its left, with the error columns on its right.</li>
     </ul>
     <h3>Formulas</h3>
@@ -940,6 +951,7 @@ const I18N = {
     <ul>
     <li>Select the Y columns and press <b>Plot</b>, or add data and functions in the Curves panel.</li>
     <li>Wheel: zoom (<kbd>Shift</kbd> x only, <kbd>Alt</kbd> y only). Drag: pan. Double-click or <kbd>A</kbd>: autoscale; double-click on the axes or margins: graph format. Hover over a point to read its value.</li>
+    <li>Right-click: the Analysis and Graph menus, open the image in a new tab and save it as PNG or SVG. Right-clicking a point selects its curve.</li>
     <li>The white page is what gets exported to PNG or SVG, with its size and font (Axes panel). In texts, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
     </ul>
     <h3>Fits</h3>

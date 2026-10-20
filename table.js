@@ -150,8 +150,19 @@ function syncReadouts() {
 /* ---------- ratón ---------- */
 
 let dragSel = null, resizing = null;
+// Doble clic detectado aquí: cada clic vuelve a dibujar la tabla y, al desaparecer el elemento
+// pulsado, el navegador no envía ni click ni dblclick.
+let lastDown = null;
+function isDouble(key, e) {
+  const now = performance.now(), L = lastDown;
+  const dbl = !!L && L.key === key && now - L.t < 450 && Math.abs(e.clientX - L.x) < 6 && Math.abs(e.clientY - L.y) < 6;
+  lastDown = dbl ? null : { key, t: now, x: e.clientX, y: e.clientY };
+  return dbl;
+}
+// Una tecla entre los dos clics (escribir y volver a pulsar la celda) no es un doble clic.
+document.addEventListener('keydown', () => { lastDown = null; }, true);
 gridEl.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || e.target.closest('.hedit')) return;
   const tb = activeTable();
   if (!tb) return;
   commitEdit(false);
@@ -165,12 +176,15 @@ gridEl.addEventListener('pointerdown', (e) => {
   }
   const td = e.target.closest('td'), th = e.target.closest('th');
   const tr = (td || th) && (td || th).parentElement;
+  const plain = !e.shiftKey && !e.ctrlKey && !e.metaKey;
   if (td && tr.dataset.r != null) {
     const r = +tr.dataset.r, c = td.cellIndex - 1;
+    if (isDouble(`c${r},${c}`, e) && plain) { e.preventDefault(); startEdit(true); return; }
     if (e.shiftKey) { s.r1 = r; s.c1 = c; } else { s.r0 = s.r1 = r; s.c0 = s.c1 = c; s.extra = []; }
     dragSel = 'cell';
   } else if (th && th.dataset.c != null) {
-    const c = +th.dataset.c;
+    const c = +th.dataset.c, unit = !!e.target.closest('.cu');
+    if (isDouble(`h${c}${unit ? 'u' : 'n'}`, e) && plain) { e.preventDefault(); editHeader(c, unit); return; }
     if (e.ctrlKey || e.metaKey) {
       const id = tb.cols[c].id;
       s.extra = s.extra.includes(id) ? s.extra.filter((x) => x !== id) : [...s.extra, id];
@@ -213,12 +227,43 @@ window.addEventListener('pointerup', () => {
   dragSel = null;
   if (resizing) { resizing = null; hist.commit(); }
 });
-gridEl.addEventListener('dblclick', (e) => {
-  const td = e.target.closest('td');
-  if (td && td.parentElement.dataset.r != null) startEdit(true);
-  const th = e.target.closest('thead th[data-c]');
-  if (th) { const p = document.querySelector('.panel[data-p="column"]'); p.open = true; $('colName').focus(); $('colName').select(); }
-});
+// Doble clic en la cabecera: se edita ahí mismo el nombre (o la unidad, si se pulsa en ella).
+// Enter o salir del campo guarda; Esc cancela.
+function editHeader(ci, unit) {
+  const tb = activeTable(), c = tb && tb.cols[ci];
+  const th = gridHead.querySelector(`th[data-c="${ci}"]`);
+  if (!c || !th) return;
+  const target = th.querySelector(unit ? '.cu' : '.cn');
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = unit ? 'hedit unit' : 'hedit';
+  inp.value = unit ? c.unit || '' : c.name;
+  inp.placeholder = unit ? t('col_unit_ph') : '';
+  inp.spellcheck = false;
+  target.replaceWith(inp);
+  inp.focus();
+  inp.select();
+  let done = false;
+  const finish = (ok) => {
+    if (done) return;
+    done = true;
+    const v = inp.value.trim();
+    if (ok && unit && v !== (c.unit || '')) { c.unit = v; hist.commit(); }
+    else if (ok && !unit && v && v !== c.name) { c.name = uniqueColName(tb, v, c); hist.commit(); }
+    gridRenderHead(tb);
+    syncColumnPanel();
+    syncStats();
+    gridWrap.focus({ preventScroll: true });
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (!((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's')) e.stopPropagation(); // Ctrl+S sigue guardando
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    else if (e.key === 'Tab') { e.preventDefault(); finish(true); if (tb.cols[ci + (e.shiftKey ? -1 : 1)]) editHeader(ci + (e.shiftKey ? -1 : 1), unit); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  inp.addEventListener('dblclick', (e) => e.stopPropagation());
+}
 
 /* ---------- edición de celdas ---------- */
 

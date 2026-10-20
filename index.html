@@ -100,7 +100,7 @@
 
   <aside class="side" id="side">
     <!-- Paneles de tabla -->
-    <details class="panel for-table" data-p="column" open>
+    <details class="panel for-table" data-p="column">
       <summary data-i18n="p_column">Column</summary>
       <div class="grid2">
         <label><span data-i18n="col_name">Name</span><input type="text" id="colName" maxlength="40"></label>
@@ -139,7 +139,7 @@
       </div>
     </details>
 
-    <details class="panel for-table" data-p="plotnew" open>
+    <details class="panel for-table" data-p="plotnew">
       <summary data-i18n="p_plotnew">Plot</summary>
       <div class="seg wide" role="group" id="plotStyle">
         <button class="seg-btn active" data-style="scatter" data-i18n="st_scatter">Scatter</button>
@@ -154,7 +154,7 @@
       <p class="hint" data-i18n-html="hint_plot_html"></p>
     </details>
 
-    <details class="panel for-table" data-p="stats" open>
+    <details class="panel for-table" data-p="stats">
       <summary data-i18n="p_stats">Statistics</summary>
       <div class="tablewrap small"><table class="stats" id="statsOut"></table></div>
       <p class="hint" data-i18n="hint_stats"></p>
@@ -176,7 +176,7 @@
     </details>
 
     <!-- Paneles de gráfica -->
-    <details class="panel for-graph" data-p="curves" open>
+    <details class="panel for-graph" data-p="curves">
       <summary data-i18n="p_curves">Curves</summary>
       <div id="curveList" class="curvelist"></div>
       <div id="curveProps"></div>
@@ -197,7 +197,7 @@
       </div>
     </details>
 
-    <details class="panel for-graph" data-p="fit" open>
+    <details class="panel for-graph" data-p="fit">
       <summary data-i18n="p_fit">Fit</summary>
       <div class="grid2">
         <label><span data-i18n="fit_curve">Data</span><select id="fitCurve"></select></label>
@@ -282,6 +282,8 @@
     </details>
   </aside>
 </main>
+
+<div class="menu-list ctx" id="ctxMenu" role="menu" hidden></div>
 
 <dialog id="help">
   <h2 data-i18n="help_title">How to use it</h2>

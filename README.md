@@ -20,7 +20,7 @@ Open `index.html` in Chrome, Edge or Firefox.
 7. **Format and export.** The side panel holds the quick settings; the detailed ones are in the *Graph* menu, see [Graph and curve format](#graph-and-curve-format). The white page is exactly what gets exported: set its size, font size, titles, axis ranges, log scales, grid and legend in *Axes and layout*, then press *PNG* (1–4× scale) or *SVG*. Tables are exported with *Export CSV* (standard, or with `;` and a decimal comma for Excel in Spanish and other European locales).
 8. **Save.** *Save project* (`Ctrl+S`) writes a `.plotit.json` file with every table, graph and the log; *Open project* loads it back. Your work is also kept automatically in the browser, and offered back when you open PlotIt again.
 
-In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values. A double-click on the axes or the margins opens the graph format.
+In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values. A double-click on the axes or the margins opens the graph format. Right-click the graph for the *Analysis* and *Graph* menus, *Open image in new tab* and *Save image as…* (PNG or SVG, in the folder you choose); right-clicking a point first selects its curve.
 
 ### Formulas
 
@@ -188,8 +188,10 @@ Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spa
 | `Del` | Clear the selection |
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste (tab-separated, compatible with spreadsheets) |
 | `Ctrl+A` | Select the whole table |
+| Double-click a column name or unit | Edit it in place (`Enter` saves, `Esc` cancels, `Tab` goes to the next column) |
 | Wheel, drag, double-click | Zoom, pan and autoscale a graph |
 | Double-click on the axes or margins | Graph format |
+| Right-click on a graph | Analysis and Graph menus, open or save the image |
 | `Shift`+drag | Set the fit range on a graph |
 | `A` | Autoscale the graph |
 | `Ctrl+S` | Save the project |

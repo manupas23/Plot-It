@@ -665,7 +665,8 @@ class SvgCtx {
   }
 }
 
-function exportPng(g) {
+// La página de la gráfica en un canvas, a la escala elegida para el PNG.
+function pngCanvas(g) {
   const sc = +$('gPngScale').value || 2;
   const cv = document.createElement('canvas');
   cv.width = Math.round(g.W * sc);
@@ -673,12 +674,18 @@ function exportPng(g) {
   const ctx = cv.getContext('2d');
   ctx.scale(sc, sc);
   drawGraph(ctx, g, g.W, g.H);
-  cv.toBlob((b) => download(fileSafe(g.name) + '.png', b), 'image/png');
+  return cv;
 }
-function exportSvg(g) {
+function svgString(g) {
   const ctx = new SvgCtx(g.W, g.H);
   drawGraph(ctx, g, g.W, g.H);
-  download(fileSafe(g.name) + '.svg', ctx.toString(), 'image/svg+xml');
+  return ctx.toString();
+}
+function exportPng(g) {
+  pngCanvas(g).toBlob((b) => download(fileSafe(g.name) + '.png', b), 'image/png');
+}
+function exportSvg(g) {
+  download(fileSafe(g.name) + '.svg', svgString(g), 'image/svg+xml');
 }
 
 /* ---------- vista en pantalla ---------- */
@@ -728,7 +735,7 @@ function graphRenderNow() {
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  gGeom = { s, ox, oy, G };
+  gGeom = { s, ox, oy, G, g };
 }
 
 const toPage = (e) => ({ x: (e.offsetX - gGeom.ox) / gGeom.s, y: (e.offsetY - gGeom.oy) / gGeom.s });
@@ -739,6 +746,7 @@ gview.addEventListener('pointerdown', (e) => {
   if (!gGeom || e.button !== 0) return;
   const p = toPage(e), G = gGeom.G;
   if (!inPlot(p, G)) return;
+  stopScaleAnim();
   gview.setPointerCapture(e.pointerId);
   $('gtip').hidden = true;
   if (e.shiftKey) {
@@ -796,6 +804,7 @@ gview.addEventListener('wheel', (e) => {
   const p = toPage(e), G = gGeom.G;
   if (!inPlot(p, G)) return;
   e.preventDefault();
+  stopScaleAnim();
   const g = activeGraph();
   const delta = (e.deltaY || e.deltaX) * (e.deltaMode === 1 ? 33 : 1);
   const f = Math.exp(clamp(delta, -300, 300) * 0.0015);
@@ -811,19 +820,24 @@ gview.addEventListener('wheel', (e) => {
   wheelTimer = setTimeout(() => hist.commit(), 400);
 }, { passive: false });
 
-function hover(e) {
-  const tip = $('gtip'), G = gGeom.G, g = activeGraph();
-  const p = toPage(e);
-  if (!inPlot(p, G)) { tip.hidden = true; $('cursorReadout').textContent = ''; return; }
-  $('cursorReadout').textContent = `x = ${fmtNum(G.xinv(p.x), 5)}   y = ${fmtNum(G.yinv(p.y), 5)}`;
+// Punto de datos a menos de 10 px de p (en coordenadas de la página), o null.
+function nearestPoint(p) {
   let best = null, bd = 10 / gGeom.s;
-  for (const s of G.series) {
+  for (const s of gGeom.G.series) {
     if (s.c.kind !== 'data') continue;
     for (const q of s.pts) {
       const d = Math.abs(q.px - p.x) + Math.abs(q.py - p.y);
       if (d < bd) { bd = d; best = { s, q }; }
     }
   }
+  return best;
+}
+function hover(e) {
+  const tip = $('gtip'), G = gGeom.G, g = activeGraph();
+  const p = toPage(e);
+  if (!inPlot(p, G)) { tip.hidden = true; $('cursorReadout').textContent = ''; return; }
+  $('cursorReadout').textContent = `x = ${fmtNum(G.xinv(p.x), 5)}   y = ${fmtNum(G.yinv(p.y), 5)}`;
+  const best = nearestPoint(p);
   if (!best) { tip.hidden = true; return; }
   const { s, q } = best, c = s.c, tb = win(c.table);
   const xc = colById(tb, c.xc), yc = colById(tb, c.yc), ye = colById(tb, c.ye);
@@ -835,13 +849,59 @@ function hover(e) {
   tip.style.top = clamp(sy - th - 10, 4, gview.clientHeight - th - 4) + 'px';
 }
 
+// Autoescala: los ejes se desplazan con una transición suave (unos 400 ms) desde el rango que se ve
+// hasta el automático. Se interpola en la escala del eje (logarítmica si lo es). La rueda o un
+// arrastre la interrumpen y siguen desde donde esté; con "reducir movimiento" en el sistema es
+// instantánea.
+let scaleAnim = 0;
+const offCtx = document.createElement('canvas').getContext('2d');
+function stopScaleAnim() {
+  cancelAnimationFrame(scaleAnim);
+  scaleAnim = 0;
+}
+// Rangos que daría la autoescala, dibujando la gráfica en un canvas que no se ve.
+function autoRanges(g) {
+  const keep = [g.x.min, g.x.max, g.y.min, g.y.max];
+  g.x.min = g.x.max = g.y.min = g.y.max = null;
+  const G = drawGraph(offCtx, g, g.W, g.H);
+  [g.x.min, g.x.max, g.y.min, g.y.max] = keep;
+  return [G.xr, G.yr];
+}
 function autoscale() {
   const g = activeGraph();
   if (!g) return;
-  g.x.min = g.x.max = g.y.min = g.y.max = null;
-  hist.commit();
-  graphRender();
-  syncAxesPanel();
+  stopScaleAnim();
+  const done = () => {
+    g.x.min = g.x.max = g.y.min = g.y.max = null;
+    hist.commit();
+    graphRender();
+    syncAxesPanel();
+  };
+  const G = gGeom && gGeom.g === g ? gGeom.G : null;
+  const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!G || still || !!G.lx !== !!g.x.log || !!G.ly !== !!g.y.log) { done(); return; }
+  const [xt, yt] = autoRanges(g);
+  const lx = G.lx, ly = G.ly;
+  const ends = [[G.xr, xt, lx], [G.yr, yt, ly]].map(([a, b, log]) => [tf(a[0], log), tf(a[1], log), tf(b[0], log), tf(b[1], log)]);
+  if (!ends.flat().every(Number.isFinite)) { done(); return; }
+  const near = ([a0, a1, b0, b1]) => Math.abs(a0 - b0) + Math.abs(a1 - b1) <= 1e-9 * (Math.abs(b1 - b0) || 1);
+  if (ends.every(near)) { done(); return; }
+  const t0 = performance.now(), dur = 400;
+  const ease = (s) => (s < 0.5 ? 4 * s * s * s : 1 - Math.pow(2 - 2 * s, 3) / 2);
+  const frame = (now) => {
+    scaleAnim = 0;
+    // Si se ha cambiado de pestaña o se ha deshecho algo entretanto, la autoescala se aplica sin más.
+    if (activeGraph() !== g) { if (P.wins.includes(g)) { g.x.min = g.x.max = g.y.min = g.y.max = null; hist.commit(); } return; }
+    const s = Math.min(1, (now - t0) / dur);
+    if (s >= 1) { done(); return; }
+    const e = ease(s);
+    const at = ([a0, a1, b0, b1], log) => [itf(a0 + (b0 - a0) * e, log), itf(a1 + (b1 - a1) * e, log)];
+    [g.x.min, g.x.max] = at(ends[0], lx);
+    [g.y.min, g.y.max] = at(ends[1], ly);
+    graphRenderNow();
+    scaleAnim = requestAnimationFrame(frame);
+  };
+  scaleAnim = requestAnimationFrame(frame);
 }
 
 /* ---------- panel de curvas ---------- */

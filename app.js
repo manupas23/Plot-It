@@ -143,12 +143,13 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------- panel activo ---------- */
 
-// El último panel en el que se ha hecho clic o se ha entrado con el teclado se resalta.
+// Se resalta el panel que está bajo el ratón; al salir de la barra queda resaltado el último.
+// Con el teclado, el panel en el que entra el foco.
 function setActivePanel(p) {
   document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el === p));
 }
 document.querySelectorAll('.panel').forEach((p) => {
-  p.addEventListener('pointerdown', () => setActivePanel(p));
+  p.addEventListener('pointerenter', () => setActivePanel(p));
   p.addEventListener('focusin', () => setActivePanel(p));
 });
 
