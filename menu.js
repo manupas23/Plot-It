@@ -15,6 +15,8 @@ function openMenu(btn) {
   closeMenus();
   // Lo que necesita una gráfica a la vista se desactiva en las tablas.
   list.querySelectorAll('[data-need="graph"]').forEach((b) => { b.disabled = !activeGraph(); });
+  list.querySelectorAll('[data-need="split"]').forEach((b) => { b.disabled = !UI.split; });
+  list.querySelectorAll('[data-cmd="split"]').forEach((b) => b.setAttribute('aria-checked', String(!!UI.split)));
   list.hidden = false;
   btn.setAttribute('aria-expanded', 'true');
   const first = list.querySelector('button:not(:disabled)');
@@ -56,6 +58,8 @@ function menuCommand(cmd) {
   else if (cmd === 'autoscale') autoscale();
   else if (cmd === 'png' && g) exportPng(g);
   else if (cmd === 'svg' && g) exportSvg(g);
+  else if (cmd === 'split') splitToggle();
+  else if (cmd === 'swap') splitSwap();
 }
 
 /* ---------- menú contextual de la gráfica ---------- */
@@ -74,12 +78,15 @@ gview.addEventListener('contextmenu', (e) => {
   openCtxMenu(e.clientX, e.clientY);
 });
 function openCtxMenu(x, y) {
-  closeMenus();
   const [an, gr] = menubar.querySelectorAll('.menu-list');
   const sub = (label, list) => `<div class="ctx-sub"><button role="menuitem" aria-haspopup="menu">${esc(label)}</button><div class="menu-list" role="menu">${list.innerHTML}</div></div>`;
-  ctxMenu.innerHTML = sub(t('m_analysis'), an) + sub(t('m_graph'), gr) + '<hr>' +
+  showCtxMenu(sub(t('m_analysis'), an) + sub(t('m_graph'), gr) + '<hr>' +
     `<button role="menuitem" data-ctx="open">${esc(t('ctx_open'))}</button>` +
-    `<button role="menuitem" data-ctx="save">${esc(t('ctx_save'))}</button>`;
+    `<button role="menuitem" data-ctx="save">${esc(t('ctx_save'))}</button>`, x, y);
+}
+function showCtxMenu(html, x, y) {
+  closeMenus();
+  ctxMenu.innerHTML = html;
   ctxMenu.querySelectorAll('button').forEach((b) => { b.disabled = false; });
   ctxMenu.hidden = false;
   // Dentro de la ventana; si no caben los submenús a la derecha, se abren a la izquierda.
@@ -117,6 +124,10 @@ ctxMenu.addEventListener('click', (e) => {
   else if (item.dataset.cmd) menuCommand(item.dataset.cmd);
   else if (item.dataset.ctx === 'open' && g) openImageTab(g);
   else if (item.dataset.ctx === 'save' && g) saveImageAs(g);
+  else if (item.dataset.ctx === 'beside') openBeside(+item.dataset.id);
+  else if (item.dataset.ctx === 'unsplit') splitClose();
+  else if (item.dataset.ctx === 'rename') { const el = $('tabs').querySelector(`.tab[data-id="${item.dataset.id}"]`); if (el) renameTab(el); }
+  else if (item.dataset.ctx === 'closewin') closeWin(+item.dataset.id);
 });
 ctxMenu.addEventListener('keydown', (e) => {
   const b = document.activeElement, level = b && b.closest('.menu-list');

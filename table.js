@@ -6,6 +6,8 @@ const ROW_H = 22; // altura de fila, fijada también en style.css
 const gridWrap = $('gridWrap'), gridEl = $('grid'), cellEdit = $('cellEdit');
 const gridHead = gridEl.tHead, gridBody = gridEl.tBodies[0], gridColsEl = gridEl.querySelector('colgroup');
 const ROLE_TAG = { X: 'X', Y: 'Y', xErr: 'xEr', yErr: 'yEr', none: '–' };
+// Elementos de una rejilla: la principal y, en pantalla dividida, la de solo lectura de al lado.
+const mainGrid = { wrap: gridWrap, table: gridEl, head: gridHead, body: gridBody, cols: gridColsEl };
 
 const activeTable = () => { const w = activeWin(); return w && w.type === 'table' ? w : null; };
 
@@ -53,26 +55,25 @@ function errFor(tb, col, role) {
 
 const rowHeadW = (tb) => Math.max(44, 14 + 8 * String(tb.rows).length);
 
-function gridRenderHead(tb) {
+function gridRenderHead(tb, G = mainGrid) {
   const s = selOf(tb), R = selRect(s), whole = R.ra === 0 && R.rb === tb.rows - 1;
   const rw = rowHeadW(tb);
-  gridColsEl.innerHTML = `<col style="width:${rw}px">` + tb.cols.map((c) => `<col style="width:${c.w}px">`).join('');
-  gridEl.style.width = rw + tb.cols.reduce((a, c) => a + c.w, 0) + 'px';
-  gridHead.innerHTML = `<tr><th class="rh" title="${esc(t('select_all'))}"></th>` + tb.cols.map((c, i) => {
+  G.cols.innerHTML = `<col style="width:${rw}px">` + tb.cols.map((c) => `<col style="width:${c.w}px">`).join('');
+  G.table.style.width = rw + tb.cols.reduce((a, c) => a + c.w, 0) + 'px';
+  G.head.innerHTML = `<tr><th class="rh" title="${esc(t('select_all'))}"></th>` + tb.cols.map((c, i) => {
     const sel = (whole && i >= R.ca && i <= R.cb) || s.extra.includes(c.id);
     const tip = `${colLabel(c)} · ${t('role_' + c.role)}${c.formula ? '\n= ' + c.formula : ''}`;
     return `<th data-c="${i}" class="${sel ? 'sel' : ''}" title="${esc(tip)}"><div class="ch"><span class="cn">${esc(c.name)}</span><span class="role r-${c.role}">${ROLE_TAG[c.role]}</span></div><div class="cu">${c.unit ? esc(c.unit) : '&nbsp;'}</div><span class="rs" data-rs="${i}"></span></th>`;
   }).join('') + '</tr>';
 }
 
-function gridRenderBody() {
-  const tb = activeTable();
+function gridRenderBody(G = mainGrid, tb = activeTable()) {
   if (!tb) return;
   const s = selOf(tb), R = selRect(s);
-  const headH = gridHead.offsetHeight || 40;
-  const top = Math.max(0, gridWrap.scrollTop - headH);
+  const headH = G.head.offsetHeight || 40;
+  const top = Math.max(0, G.wrap.scrollTop - headH);
   const first = Math.max(0, Math.floor(top / ROW_H) - 8);
-  const last = Math.min(tb.rows - 1, Math.ceil((top + (gridWrap.clientHeight || 600)) / ROW_H) + 8);
+  const last = Math.min(tb.rows - 1, Math.ceil((top + (G.wrap.clientHeight || 600)) / ROW_H) + 8);
   const nc = tb.cols.length;
   const extra = new Set(s.extra.map((id) => tb.cols.findIndex((c) => c.id === id)));
   let h = '';
@@ -92,7 +93,7 @@ function gridRenderBody() {
     h += '</tr>';
   }
   if (last < tb.rows - 1) h += `<tr class="spacer"><td colspan="${nc + 1}" style="height:${(tb.rows - 1 - last) * ROW_H}px"></td></tr>`;
-  gridBody.innerHTML = h;
+  G.body.innerHTML = h;
 }
 
 function gridRender() {

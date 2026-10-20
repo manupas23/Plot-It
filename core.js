@@ -17,6 +17,7 @@ const UI = {
   curve: new Map(), // id de gráfica → id de la curva seleccionada
   fit: new Map(),   // id de gráfica → estado del panel de ajuste
   plotStyle: 'scatter',
+  split: null,      // pantalla dividida: { left, right (ids), focus: 'left' | 'right', ratio }
 };
 
 /* ---------- utilidades ---------- */
@@ -384,7 +385,7 @@ function applySnapshot(s) {
 const HIST_MAX_CHARS = 60e6;
 const hist = {
   stack: [], pos: -1, saved: 0,
-  reset() { this.stack = [snapshot()]; this.pos = 0; this.saved = 0; this.syncButtons(); },
+  reset() { this.stack = [snapshot()]; this.pos = 0; this.saved = 0; UI.split = null; this.syncButtons(); },
   commit() {
     const s = snapshot();
     if (this.stack[this.pos] === s) return;
@@ -398,6 +399,7 @@ const hist = {
     this.pos = this.stack.length - 1;
     this.syncButtons();
     autosave(s);
+    renderSide(); // en pantalla dividida, la otra vista refleja el cambio
   },
   go(k) {
     const p = this.pos + k;
@@ -502,7 +504,8 @@ const ICON_TABLE = '<svg class="ti" viewBox="0 0 16 16" aria-hidden="true"><rect
 const ICON_GRAPH = '<svg class="ti" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 1.5V14h12.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M4 12Q8 11 13 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 
 function renderTabs() {
-  $('tabs').innerHTML = P.wins.map((w) => `<div class="tab${w.id === P.active ? ' active' : ''}" role="tab" data-id="${w.id}" title="${esc(t('tab_t'))}">${w.type === 'table' ? ICON_TABLE : ICON_GRAPH}<span class="tn">${esc(w.name)}</span><button class="tx" data-close="${w.id}" title="${esc(t('close_t'))}">×</button></div>`).join('');
+  const side = sideId();
+  $('tabs').innerHTML = P.wins.map((w) => `<div class="tab${w.id === P.active ? ' active' : w.id === side ? ' shown' : ''}" role="tab" data-id="${w.id}" title="${esc(t('tab_t'))}">${w.type === 'table' ? ICON_TABLE : ICON_GRAPH}<span class="tn">${esc(w.name)}</span><button class="tx" data-close="${w.id}" title="${esc(t('close_t'))}">×</button></div>`).join('');
   const cur = $('tabs').querySelector('.tab.active');
   if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }

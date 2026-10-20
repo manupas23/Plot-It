@@ -8,6 +8,7 @@ const scrollMem = new Map(); // id de tabla → [scrollTop, scrollLeft]
 let shownTable = null;
 
 function renderAll() {
+  splitLayout();
   const w = activeWin();
   const isT = w.type === 'table';
   $('tableBar').hidden = $('tablePane').hidden = !isT;
@@ -32,6 +33,7 @@ function renderAll() {
     syncGraphPanels();
     graphRender();
   }
+  renderSide();
 }
 
 gridWrap.addEventListener('scroll', () => {

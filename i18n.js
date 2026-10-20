@@ -18,7 +18,7 @@ const I18N = {
     help_t: 'Ayuda (?)',
     new_table: '+ Tabla',
     new_graph: '+ Gráfica',
-    tab_t: 'Doble clic para cambiar el nombre; clic con la rueda para cerrar',
+    tab_t: 'Doble clic para cambiar el nombre; clic con la rueda para cerrar; clic derecho, más opciones',
     close_t: 'Cerrar',
     autoscale: 'Autoescala',
     autoscale_t: 'Ajustar los ejes a los datos (A o doble clic en la gráfica)',
@@ -381,6 +381,17 @@ const I18N = {
     mg_png: 'Exportar PNG',
     mg_svg: 'Exportar SVG',
     ctx_open: 'Abrir imagen en una pestaña nueva',
+    m_view: 'Ver',
+    mv_split: 'Dos pestañas a la vez',
+    mv_swap: 'Intercambiar los lados',
+    split_t: 'Ver dos pestañas a la vez (pantalla dividida)',
+    split_close: 'Volver a una sola pestaña',
+    split_hint: 'Clic para trabajar aquí',
+    split_drag_t: 'Arrastra para repartir el espacio; doble clic, mitad y mitad',
+    split_need: 'Abre otra tabla o gráfica para ver dos a la vez.',
+    tab_beside: 'Abrir al lado',
+    tab_rename: 'Cambiar el nombre',
+    tab_close: 'Cerrar',
     ctx_save: 'Guardar imagen como…',
     ctx_saved: 'Imagen guardada: {name}',
     ctx_save_err: 'No se ha podido guardar la imagen: {msg}',
@@ -473,6 +484,11 @@ const I18N = {
     <li>Clic derecho: los menús Análisis y Gráfica, abrir la imagen en una pestaña nueva y guardarla como PNG o SVG. Si se pulsa sobre un punto, su curva queda seleccionada.</li>
     <li>La hoja blanca es lo que se exporta a PNG o SVG, con su tamaño y su letra (panel Ejes). En los textos, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
     </ul>
+    <h3>Pestañas</h3>
+    <ul>
+    <li>Doble clic: cambiar el nombre; clic con la rueda: cerrar; clic derecho: abrir al lado, cambiar el nombre o cerrar.</li>
+    <li>Dos a la vez (tabla y gráfica, dos gráficas…): botón de la pantalla dividida junto a <b>+ Gráfica</b> o menú <b>Ver</b>. Se trabaja en la que tiene la raya azul; un clic en la otra la activa. La barra del medio reparte el espacio (doble clic: mitad y mitad).</li>
+    </ul>
     <h3>Ajustes</h3>
     <ul>
     <li>Elige los datos y el modelo, o escribe el tuyo: cualquier nombre que no sea <code>x</code> es un parámetro. <kbd>Mayús</kbd>+arrastrar en la gráfica limita el intervalo.</li>
@@ -510,7 +526,7 @@ const I18N = {
     help_t: 'Help (?)',
     new_table: '+ Table',
     new_graph: '+ Graph',
-    tab_t: 'Double-click to rename; middle-click to close',
+    tab_t: 'Double-click to rename; middle-click to close; right-click for more',
     close_t: 'Close',
     autoscale: 'Autoscale',
     autoscale_t: 'Fit the axes to the data (A or double-click on the graph)',
@@ -863,6 +879,17 @@ const I18N = {
     mg_png: 'Export PNG',
     mg_svg: 'Export SVG',
     ctx_open: 'Open image in new tab',
+    m_view: 'View',
+    mv_split: 'Two tabs side by side',
+    mv_swap: 'Swap sides',
+    split_t: 'Show two tabs side by side (split screen)',
+    split_close: 'Back to a single tab',
+    split_hint: 'Click to work here',
+    split_drag_t: 'Drag to share the space; double-click for half and half',
+    split_need: 'Open another table or graph to see two at once.',
+    tab_beside: 'Open beside',
+    tab_rename: 'Rename',
+    tab_close: 'Close',
     ctx_save: 'Save image as…',
     ctx_saved: 'Image saved: {name}',
     ctx_save_err: 'The image could not be saved: {msg}',
@@ -953,6 +980,11 @@ const I18N = {
     <li>Wheel: zoom (<kbd>Shift</kbd> x only, <kbd>Alt</kbd> y only). Drag: pan. Double-click or <kbd>A</kbd>: autoscale; double-click on the axes or margins: graph format. Hover over a point to read its value.</li>
     <li>Right-click: the Analysis and Graph menus, open the image in a new tab and save it as PNG or SVG. Right-clicking a point selects its curve.</li>
     <li>The white page is what gets exported to PNG or SVG, with its size and font (Axes panel). In texts, <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li>
+    </ul>
+    <h3>Tabs</h3>
+    <ul>
+    <li>Double-click: rename; middle-click: close; right-click: open beside, rename or close.</li>
+    <li>Two at once (a table and a graph, two graphs…): split-screen button next to <b>+ Graph</b> or the <b>View</b> menu. You work in the one with the blue line; a click on the other one activates it. The bar in the middle shares the space (double-click: half and half).</li>
     </ul>
     <h3>Fits</h3>
     <ul>

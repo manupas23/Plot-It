@@ -697,17 +697,14 @@ function graphRender() {
   gQueued = true;
   requestAnimationFrame(graphRenderNow);
 }
-function graphRenderNow() {
-  gQueued = false;
-  const g = activeGraph();
-  if (!g) return;
-  const pane = $('graphPane');
+// Dibuja la página de g centrada en el canvas cv, que ocupa todo pane. Devuelve la escala, la
+// posición de la página y la geometría del gráfico, y deja el contexto en coordenadas de página.
+function paintGraph(cv, ctx, pane, g) {
   const CW = pane.clientWidth, CH = pane.clientHeight;
-  if (!CW || !CH) return;
+  if (!CW || !CH) return null;
   const dpr = window.devicePixelRatio || 1;
   const bw = Math.round(CW * dpr), bh = Math.round(CH * dpr);
-  if (gview.width !== bw || gview.height !== bh) { gview.width = bw; gview.height = bh; }
-  const ctx = gvctx;
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, CW, CH);
   const m = 18;
@@ -719,7 +716,15 @@ function graphRenderNow() {
   ctx.fillRect(ox, oy, g.W * s, g.H * s);
   ctx.restore();
   ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
-  const G = drawGraph(ctx, g, g.W, g.H);
+  return { s, ox, oy, G: drawGraph(ctx, g, g.W, g.H), g };
+}
+function graphRenderNow() {
+  gQueued = false;
+  const g = activeGraph();
+  if (!g) return;
+  const geo = paintGraph(gview, gvctx, $('graphPane'), g);
+  if (!geo) return;
+  const ctx = gvctx, { s, G } = geo;
   // Rango de ajuste: banda azul (solo en pantalla).
   const F = UI.fit.get(g.id);
   const band = gDrag && gDrag.mode === 'range' ? [gDrag.a, gDrag.b] : F ? [F.xmin, F.xmax] : [null, null];
@@ -735,7 +740,7 @@ function graphRenderNow() {
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  gGeom = { s, ox, oy, G, g };
+  gGeom = geo;
 }
 
 const toPage = (e) => ({ x: (e.offsetX - gGeom.ox) / gGeom.s, y: (e.offsetY - gGeom.oy) / gGeom.s });

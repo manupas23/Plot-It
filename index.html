@@ -39,6 +39,13 @@
         <button role="menuitem" data-cmd="svg" data-need="graph" data-i18n="mg_svg">Export SVG</button>
       </div>
     </div>
+    <div class="menu">
+      <button class="menu-btn" aria-haspopup="menu" aria-expanded="false" data-i18n="m_view">View</button>
+      <div class="menu-list" role="menu" hidden>
+        <button role="menuitemcheckbox" data-cmd="split" aria-checked="false" data-i18n="mv_split">Two tabs side by side</button>
+        <button role="menuitem" data-cmd="swap" data-need="split" data-i18n="mv_swap">Swap sides</button>
+      </div>
+    </div>
   </nav>
   <div class="actions">
     <label class="btn primary" data-i18n-title="import_t"><span data-i18n="import">Import data</span><input id="fileData" type="file" multiple hidden></label>
@@ -60,35 +67,53 @@
       <div class="tablist" id="tabs" role="tablist"></div>
       <button class="btn small" id="btnNewTable" data-i18n="new_table">+ Table</button>
       <button class="btn small" id="btnNewGraph" data-i18n="new_graph">+ Graph</button>
+      <button class="btn small icon" id="btnSplit" aria-pressed="false" data-i18n-title="split_t"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.5v11" stroke="currentColor" stroke-width="1.4"/></svg></button>
     </nav>
 
-    <div class="toolbar" id="tableBar">
-      <span class="readout" id="cellReadout"></span>
-      <span class="spacer"></span>
-      <span class="readout muted" id="selReadout"></span>
-    </div>
-    <div class="toolbar" id="graphBar" hidden>
-      <span class="readout" id="cursorReadout"></span>
-      <span class="spacer"></span>
-      <button class="btn small" id="btnAutoscale" data-i18n="autoscale" data-i18n-title="autoscale_t">Autoscale</button>
-      <button class="btn small" id="btnPng" data-i18n="export_png">PNG</button>
-      <button class="btn small" id="btnSvg" data-i18n="export_svg">SVG</button>
-    </div>
+    <div class="panes" id="panes">
+      <div class="slot" id="slotMain">
+        <div class="toolbar" id="tableBar">
+          <span class="readout" id="cellReadout"></span>
+          <span class="spacer"></span>
+          <span class="readout muted" id="selReadout"></span>
+        </div>
+        <div class="toolbar" id="graphBar" hidden>
+          <span class="readout" id="cursorReadout"></span>
+          <span class="spacer"></span>
+          <button class="btn small" id="btnAutoscale" data-i18n="autoscale" data-i18n-title="autoscale_t">Autoscale</button>
+          <button class="btn small" id="btnPng" data-i18n="export_png">PNG</button>
+          <button class="btn small" id="btnSvg" data-i18n="export_svg">SVG</button>
+        </div>
 
-    <div class="pane" id="tablePane">
-      <div class="gridwrap" id="gridWrap" tabindex="0">
-        <table class="grid" id="grid"><colgroup></colgroup><thead></thead><tbody></tbody></table>
-        <input id="cellEdit" class="celledit" type="text" autocomplete="off" spellcheck="false" hidden>
+        <div class="pane" id="tablePane">
+          <div class="gridwrap" id="gridWrap" tabindex="0">
+            <table class="grid" id="grid"><colgroup></colgroup><thead></thead><tbody></tbody></table>
+            <input id="cellEdit" class="celledit" type="text" autocomplete="off" spellcheck="false" hidden>
+          </div>
+          <div class="empty" id="emptyHint" hidden>
+            <p class="big" data-i18n="empty_big">Type or paste your data</p>
+            <p data-i18n-html="empty_html"></p>
+            <button class="btn small" id="btnExample" data-i18n="example">Load an example</button>
+          </div>
+        </div>
+        <div class="pane" id="graphPane" hidden>
+          <canvas id="gview"></canvas>
+          <div class="tip" id="gtip" hidden></div>
+        </div>
       </div>
-      <div class="empty" id="emptyHint" hidden>
-        <p class="big" data-i18n="empty_big">Type or paste your data</p>
-        <p data-i18n-html="empty_html"></p>
-        <button class="btn small" id="btnExample" data-i18n="example">Load an example</button>
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" tabindex="0" data-i18n-title="split_drag_t" hidden></div>
+      <div class="slot side" id="slotSide" hidden>
+        <div class="toolbar">
+          <span class="side-name" id="sideName"></span>
+          <span class="spacer"></span>
+          <span class="side-hint" data-i18n="split_hint">Click to work here</span>
+          <button class="btn small icon" id="btnSplitClose" data-i18n-title="split_close">×</button>
+        </div>
+        <div class="pane" id="sidePane">
+          <div class="gridwrap" id="gridWrap2"><table class="grid" id="grid2"><colgroup></colgroup><thead></thead><tbody></tbody></table></div>
+          <canvas id="gview2" hidden></canvas>
+        </div>
       </div>
-    </div>
-    <div class="pane" id="graphPane" hidden>
-      <canvas id="gview"></canvas>
-      <div class="tip" id="gtip" hidden></div>
     </div>
     <div class="drop" id="dropHint" hidden>
       <div>
@@ -346,6 +371,7 @@
 <script src="table.js"></script>
 <script src="graph.js"></script>
 <script src="menu.js"></script>
+<script src="split.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
