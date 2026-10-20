@@ -1,5 +1,5 @@
 'use strict';
-// PlotIt: tablas, gráficas y ajustes en el navegador, al estilo de SciDAVis.
+// Plot.It: tablas, gráficas y ajustes en el navegador, al estilo de SciDAVis.
 // core.js: utilidades, modelo del proyecto, importación y exportación, historial y pestañas.
 //
 // El proyecto (P) es un objeto JSON plano: así el historial, el autoguardado y el archivo

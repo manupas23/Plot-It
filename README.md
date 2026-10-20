@@ -1,4 +1,4 @@
-# PlotIt
+# Plot.It
 
 Data analysis and plotting in the browser, in the spirit of [SciDAVis](https://scidavis.sourceforge.net/) and Origin: tables with column formulas, publication-quality graphs and nonlinear curve fitting with parameter errors.
 
@@ -19,7 +19,7 @@ Open `index.html` in Chrome, Edge or Firefox.
 5. **Fit.** In the *Fit* panel choose the data and a model, or write your own expression. `Shift`+drag on the graph limits the $x$ range. *Fit* draws the curve and prints the parameters with their errors, $\chi^2/\nu$, $R^2$ and RMSE; the result is also kept in the *Results log*. *Residuals → table* writes $x$, $y$, the fitted value and the residual of each point.
 6. **Analyse.** The *Analysis* menu in the top bar holds the FFT, FFT filters, smoothing, interpolation, correlation, histograms and peak finding, see [Analysis](#analysis). Each tool opens a dialog with the selected column or curve already chosen, writes its result to a new column or table, can plot it, and leaves a summary in the *Results log*.
 7. **Format and export.** The side panel holds the quick settings; the detailed ones are in the *Graph* menu, see [Graph and curve format](#graph-and-curve-format). The white page is exactly what gets exported: set its size, font size, titles, axis ranges, log scales, grid and legend in *Axes and layout*, then press *PNG* (1–4× scale) or *SVG*. Tables are exported with *Export CSV* (standard, or with `;` and a decimal comma for Excel in Spanish and other European locales).
-8. **Save.** *Save project* (`Ctrl+S`) writes a `.plotit.json` file with every table, graph and the log; *Open project* loads it back. Your work is also kept automatically in the browser, and offered back when you open PlotIt again.
+8. **Save.** *Save project* (`Ctrl+S`) writes a `.plotit.json` file with every table, graph and the log; *Open project* loads it back. Your work is also kept automatically in the browser, and offered back when you open Plot.It again.
 
 In graphs: mouse wheel to zoom (`Shift`: $x$ only, `Alt`: $y$ only), drag to pan, double-click or `A` to autoscale, and hover over a point to read its row and values. A double-click on the axes or the margins opens the graph format. Right-click the graph for the *Analysis* and *Graph* menus, *Open image in new tab* and *Save image as…* (PNG or SVG, in the folder you choose); right-clicking a point first selects its curve.
 
