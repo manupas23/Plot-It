@@ -257,6 +257,7 @@ const I18N = {
     // Archivos y proyecto
     import_ok: ({ name, rows, cols, blocks }) => `${name}: ${rows} filas × ${cols} columnas` + (blocks > 1 ? ` (${blocks} bloques unidos)` : ''),
     import_none: 'No se han encontrado columnas de números en {name}.',
+    import_split: '{name}: {n} tablas, una por cada objeto o etiqueta de la primera columna de texto',
     import_many: '{n} archivos importados',
     proj_invalid: 'El archivo no es un JSON válido.',
     proj_not_plotit: 'No es un proyecto de Plot.It.',
@@ -786,6 +787,7 @@ const I18N = {
 
     import_ok: ({ name, rows, cols, blocks }) => `${name}: ${rows} rows × ${cols} columns` + (blocks > 1 ? ` (${blocks} blocks joined)` : ''),
     import_none: 'No numeric columns found in {name}.',
+    import_split: '{name}: {n} tables, one for each object or label in the text column',
     import_many: '{n} files imported',
     proj_invalid: 'The file is not valid JSON.',
     proj_not_plotit: 'This is not a Plot.It project.',

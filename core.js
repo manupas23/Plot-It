@@ -226,18 +226,21 @@ const COMMENT = /^\s*(#|%|\/\/|!)/;
 const stripComment = (l) => l.replace(COMMENT, '').trim();
 
 // Números de una línea, o null si no es una línea de datos. Con coma como separador no se
-// admite la coma decimal.
-function numericFields(line, d) {
+// admite la coma decimal. Con `text`, los campos que no son números se guardan como texto
+// (una columna de etiquetas, como el "objeto" de los CSV de TrackIt), pero sigue haciendo
+// falta al menos un número.
+function numericFields(line, d, text = false) {
   if (!line.trim() || COMMENT.test(line)) return null;
   const f = splitLine(line, d);
   const out = [];
   let any = false;
   for (const s of f) {
     if (!s) { out.push(null); continue; }
-    if (d === ',' && s.includes(',')) return null;
+    if (d === ',' && s.includes(',') && !(text && parseNum(s) === undefined)) return null;
     const v = parseNum(s);
     if (v === undefined || v === null) {
       if (/^[-+]?(nan|inf(inity)?)$/i.test(s)) { out.push(null); continue; }
+      if (text) { out.push(s); continue; }
       return null;
     }
     out.push(v);
@@ -250,11 +253,16 @@ function numericFields(line, d) {
 // espacios) con el que más líneas son numéricas, toma el bloque de datos más largo y, como
 // cabecera, la línea que lo precede si tiene el mismo número de campos. Los demás bloques con
 // la misma cabecera se añaden detrás: así un log de LAMMPS con varios run da una sola tabla.
+// Si no hay ninguna línea solo de números, se repite admitiendo columnas de texto: así los
+// archivos que ya se leían salen exactamente igual.
 function parseDataText(text) {
   const lines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  return parseDataLines(lines, false) || parseDataLines(lines, true);
+}
+function parseDataLines(lines, allowText) {
   let best = null;
   for (const d of DELIMS) {
-    const parsed = lines.map((l) => numericFields(l, d));
+    const parsed = lines.map((l) => numericFields(l, d, allowText));
     const counts = new Map();
     for (const p of parsed) if (p) counts.set(p.length, (counts.get(p.length) || 0) + 1);
     let F = 0, nF = 0;
@@ -306,13 +314,46 @@ function parseDataText(text) {
 const ERR_NAME = /^(err|errs|error|errors|sigma|sd|std|stdev|stddev|unc|uncertainty|delta)$|[_ .-](err|error|sd|std|sigma)$|^(err|error|sd|std|sigma)[_ .-]/i;
 const isErrName = (n, prev) => ERR_NAME.test(n) || (prev != null && (n === 'd' + prev || n === 'Δ' + prev || n === 'δ' + prev));
 
+// Columnas que solo tienen texto (o vacíos).
+function textCols(parsed) {
+  const out = [];
+  for (let j = 0; j < parsed.F; j++) {
+    let txt = false, num = false;
+    for (const r of parsed.rows) { if (typeof r[j] === 'string') txt = true; else if (r[j] != null) num = true; }
+    if (txt && !num) out.push(j);
+  }
+  return out;
+}
+
+// Un archivo con una sola columna de etiquetas que se repiten (el CSV de TrackIt con varios
+// objetos) da una tabla por etiqueta, sin esa columna. Si no, una sola parte.
+const MAX_GROUPS = 50;
+function splitByLabel(parsed) {
+  const tc = textCols(parsed);
+  if (tc.length !== 1) return [{ parsed }];
+  const j = tc[0];
+  const groups = new Map();
+  for (const r of parsed.rows) {
+    const k = r[j] ?? '';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r.filter((_, i) => i !== j));
+  }
+  if (groups.size < 2 || groups.size > MAX_GROUPS) return [{ parsed }];
+  const names = parsed.names && parsed.names.filter((_, i) => i !== j);
+  return [...groups].map(([label, rows]) => ({ label, parsed: { ...parsed, names, rows, F: parsed.F - 1 } }));
+}
+
 function tableFromParsed(parsed, name) {
   const { rows, F } = parsed;
+  const text = new Set(textCols(parsed));
+  // X es la primera columna de números; las de texto no tienen papel en las gráficas.
+  let xj = 0;
+  while (text.has(xj) && xj < F - 1) xj++;
   const cols = [];
   for (let j = 0; j < F; j++) {
     const nm = parsed.names ? parsed.names[j] : colLetter(j);
-    const err = j > 0 && parsed.names && isErrName(nm, parsed.names[j - 1]);
-    const c = makeCol(nm, F === 1 ? 'Y' : j === 0 ? 'X' : err ? 'yErr' : 'Y');
+    const err = j > xj && parsed.names && isErrName(nm, parsed.names[j - 1]);
+    const c = makeCol(nm, text.has(j) ? 'none' : F === 1 ? 'Y' : j === xj ? 'X' : err ? 'yErr' : 'Y');
     c.data = rows.map((r) => (r[j] === undefined ? null : r[j]));
     cols.push(c);
   }
@@ -320,29 +361,34 @@ function tableFromParsed(parsed, name) {
 }
 
 async function importFiles(files) {
-  let last = null, n = 0;
+  let last = null, n = 0, added = 0;
   for (const f of files) {
     if (/\.json$/i.test(f.name)) { openProject(f); continue; }
     let parsed = null;
     try { parsed = parseDataText(await f.text()); } catch (e) { parsed = null; }
     if (!parsed || !parsed.rows.length) { toast(t('import_none', { name: f.name }), 5000); continue; }
-    last = tableFromParsed(parsed, f.name.replace(/\.[^.]+$/, '') || 'data');
-    if (!P.name) P.name = last.name;
+    const base = f.name.replace(/\.[^.]+$/, '') || 'data';
+    const parts = splitByLabel(parsed);
+    for (const part of parts) last = tableFromParsed(part.parsed, part.label ? `${base} · ${part.label}` : base);
+    added += parts.length;
+    if (!P.name) P.name = base;
     n++;
-    toast(t('import_ok', { name: f.name, rows: parsed.rows.length, cols: parsed.F, blocks: parsed.blocks }), 5000);
+    if (parts.length > 1) toast(t('import_split', { name: f.name, n: parts.length }), 5000);
+    else toast(t('import_ok', { name: f.name, rows: parsed.rows.length, cols: parsed.F, blocks: parsed.blocks }), 5000);
   }
   if (!last) return;
-  dropUnusedFirstTable(last);
+  dropUnusedFirstTable(last, added);
   P.active = last.id;
   hist.commit();
   renderAll();
   if (n > 1) toast(t('import_many', { n }), 4000);
 }
 
-// Si el proyecto solo tenía la tabla vacía del principio, se quita al importar.
-function dropUnusedFirstTable(except) {
+// Si el proyecto solo tenía la tabla vacía del principio, se quita al importar. `added` son
+// las ventanas recién creadas (un archivo puede dar varias tablas).
+function dropUnusedFirstTable(except, added = 1) {
   const first = P.wins[0];
-  if (P.wins.length === 2 && first !== except && first.type === 'table' && !tableHasData(first)) {
+  if (P.wins.length === 1 + added && first !== except && first.type === 'table' && !tableHasData(first)) {
     P.wins.splice(0, 1);
   }
 }
