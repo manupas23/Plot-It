@@ -217,6 +217,7 @@ const I18N = {
     fit_rel_t: 'Error relativo',
     fit_redchi_t: 'Chi cuadrado reducido; cerca de 1 en un ajuste pesado que concuerda con los errores',
     fit_r2_t: 'Coeficiente de determinación',
+    fit_r2_low: 'Coeficiente de determinación: por debajo de 0.9, el modelo explica mal los datos',
     fit_rmse_t: 'Raíz del error cuadrático medio de los residuos',
     fit_copy_val: 'Clic para copiar el valor con todas sus cifras',
     fit_copy_t: 'Copiar el resultado como texto',
@@ -521,7 +522,7 @@ const I18N = {
     <h3>Ajustes</h3>
     <ul>
     <li>Elige los datos y el modelo, o escribe el tuyo: cualquier nombre que no sea <code>x</code> es un parámetro. <kbd>Mayús</kbd>+arrastrar en la gráfica limita el intervalo.</li>
-    <li>Levenberg–Marquardt, pesado con 1/σ² si hay errores de Y. Se dan los parámetros con su error, χ²/ν, R² y RMSE. Cada ajuste queda guardado con su curva: si hay varios, se elige en la lista cuál ver, sin repetirlo. Un clic en un valor lo copia con todas sus cifras. Con otro intervalo de x, el ajuste se guarda aparte. El texto va también al registro, que solo se abre a mano.</li>
+    <li>Levenberg–Marquardt, pesado con 1/σ² si hay errores de Y. Se dan los parámetros con su error, χ²/ν, R² (en rojo si es menor que 0.9) y RMSE. Cada ajuste queda guardado con su curva: si hay varios, se elige en la lista cuál ver, sin repetirlo. Un clic en un valor lo copia con todas sus cifras. Con otro intervalo de x, el ajuste se guarda aparte. El texto va también al registro, que solo se abre a mano.</li>
     </ul>
     <h3>Análisis</h3>
     <ul>
@@ -748,6 +749,7 @@ const I18N = {
     fit_rel_t: 'Relative error',
     fit_redchi_t: 'Reduced chi-squared; close to 1 in a weighted fit that agrees with the errors',
     fit_r2_t: 'Coefficient of determination',
+    fit_r2_low: 'Coefficient of determination: below 0.9, the model explains the data poorly',
     fit_rmse_t: 'Root mean square of the residuals',
     fit_copy_val: 'Click to copy the value with all its digits',
     fit_copy_t: 'Copy the result as text',
@@ -1047,7 +1049,7 @@ const I18N = {
     <h3>Fits</h3>
     <ul>
     <li>Choose the data and the model, or write your own: every name other than <code>x</code> is a parameter. <kbd>Shift</kbd>+drag on the graph limits the range.</li>
-    <li>Levenberg–Marquardt, weighted with 1/σ² when there are Y errors. You get the parameters with their errors, χ²/ν, R² and RMSE. Each fit is kept with its curve: when there are several, pick in the list which one to see, without fitting again. Click a value to copy it with all its digits. A fit over another x range is kept separately. The text also goes to the log, which only opens by hand.</li>
+    <li>Levenberg–Marquardt, weighted with 1/σ² when there are Y errors. You get the parameters with their errors, χ²/ν, R² (in red when below 0.9) and RMSE. Each fit is kept with its curve: when there are several, pick in the list which one to see, without fitting again. Click a value to copy it with all its digits. A fit over another x range is kept separately. The text also goes to the log, which only opens by hand.</li>
     </ul>
     <h3>Analysis</h3>
     <ul>

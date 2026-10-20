@@ -1172,6 +1172,9 @@ function fmtPM(v, e) {
   return q.ex == null ? `${q.v} ± ${q.e}` : `(${q.v} ± ${q.e})e${q.ex}`;
 }
 const fin = (v, f) => (Number.isFinite(v) ? f(v) : '–');
+// R² por debajo de este valor se marca en rojo.
+const R2_LOW = 0.9;
+const lowR2 = (r2) => Number.isFinite(r2) && r2 < R2_LOW;
 
 /* ---------- resultados guardados ---------- */
 
@@ -1225,7 +1228,7 @@ function fitCardHtml(g, fc) {
     return `<tr><td class="pn">${esc(n)}</td><td class="pv" data-n="${esc(n)}" data-v="${full}" title="${esc(t('fit_copy_val'))}">${esc(q.v)}${pow(q.ex)}</td>` +
       `<td class="pe">${q.e == null ? '' : `± ${esc(q.e)}${pow(q.ex)}`}</td><td class="pr${rel > 50 ? ' bad' : ''}">${relTxt}</td></tr>`;
   }).join('');
-  const stat = (k, v, tip) => `<div title="${esc(tip)}"><span>${k}</span><b>${esc(v)}</b></div>`;
+  const stat = (k, v, tip, bad) => `<div${bad ? ' class="bad"' : ''} title="${esc(tip)}"><span>${k}</span><b>${esc(v)}</b></div>`;
   const notes = [];
   if (!R.weighted) notes.push(esc(t('fit_err_note')));
   notes.push(esc(R.converged ? t('fit_converged', { n: R.iter }) : t('fit_not_converged', { n: R.iter })));
@@ -1234,7 +1237,7 @@ function fitCardHtml(g, fc) {
     <div class="fc-head"><span class="sw" style="background:${esc(fc.color)}"></span><b>${esc(fitName(fc))}</b><span class="fc-src">· ${esc(fitSrc(g, fc))}</span></div>
     <div class="fc-expr">y = ${esc(R.expr)}</div>
     <table class="fc-params"><thead><tr><th>${esc(t('fit_param'))}</th><th>${esc(t('fit_value'))}</th><th>${esc(t('fit_error'))}</th><th title="${esc(t('fit_rel_t'))}">${esc(t('fit_rel'))}</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="fc-stats">${stat('χ²/ν', fmtNum(R.redchi2, 4), t('fit_redchi_t'))}${stat('R²', fin(R.r2, (v) => v.toFixed(4)), t('fit_r2_t'))}${stat('RMSE', fmtNum(R.rmse, 4), t('fit_rmse_t'))}</div>
+    <div class="fc-stats">${stat('χ²/ν', fmtNum(R.redchi2, 4), t('fit_redchi_t'))}${stat('R²', fin(R.r2, (v) => v.toFixed(4)), lowR2(R.r2) ? t('fit_r2_low') : t('fit_r2_t'), lowR2(R.r2))}${stat('RMSE', fmtNum(R.rmse, 4), t('fit_rmse_t'))}</div>
     <p class="fc-meta">${esc(t('fit_npts', { n: R.n }))} · x ∈ [${esc(fmtNum(R.x0))}, ${esc(fmtNum(R.x1))}] · ${esc(R.weighted ? t('fit_weighted') : t('fit_unweighted'))}<br>χ² = ${esc(fmtNum(R.chi2, 5))} · ν = ${R.dof} · R²adj = ${esc(fin(R.adjr2, (v) => v.toFixed(4)))}</p>
     <p class="fc-note${R.converged ? '' : ' warn'}">${notes.join(' ')}</p>
     ${edited ? `<p class="fc-note warn">${esc(t('fit_edited'))}</p>` : ''}
@@ -1248,7 +1251,7 @@ function renderFitResults(g, F) {
     h += `<p class="fitlist-h">${esc(t('fit_results', { n: fs.length }))}</p><div class="fitlist">` +
       fs.map((c) => `<button type="button" class="fitrow${c === cur ? ' sel' : ''}" data-fit="${c.id}" aria-pressed="${c === cur}">` +
         `<span class="sw" style="background:${esc(c.color)}"></span><span class="fl">${esc(fitName(c))} · ${esc(fitSrc(g, c))}</span>` +
-        `<span class="fr">R² ${esc(fin(c.fit.r2, (v) => v.toFixed(3)))}</span></button>`).join('') + '</div>';
+        `<span class="fr${lowR2(c.fit.r2) ? ' bad' : ''}">R² ${esc(fin(c.fit.r2, (v) => v.toFixed(3)))}</span></button>`).join('') + '</div>';
   }
   if (cur) h += fitCardHtml(g, cur);
   $('fitResults').innerHTML = h;

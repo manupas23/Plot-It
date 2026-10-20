@@ -347,6 +347,9 @@ td.pr.bad { color: var(--danger); }
 .fc-stats div { min-width: 0; padding: 5px 8px; background: var(--surface-2); border-radius: 6px; }
 .fc-stats span { display: block; font-size: 11px; color: var(--text-muted); }
 .fc-stats b { font-family: ui-monospace, Consolas, monospace; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.fc-stats div.bad { box-shadow: inset 0 0 0 1.5px var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface-2)); }
+.fc-stats div.bad b { color: var(--danger); }
+.fitrow .fr.bad { color: var(--danger); }
 .fc-meta, .fc-note { margin: 3px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
 .fc-note.warn { color: var(--danger); }
 .log { max-height: 320px; overflow: auto; padding: 8px 10px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; }
