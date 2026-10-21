@@ -6,6 +6,12 @@
 <title>Plot.It</title>
 <meta name="description" content="Data analysis and plotting in the browser: tables with formulas, publication-quality graphs and nonlinear curve fitting.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M5 4V27H29' fill='none' stroke='%233987e5' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/><path d='M8 24Q17 22 27 6' fill='none' stroke='%23e8763f' stroke-width='2.6' stroke-linecap='round'/><circle cx='11' cy='20.6' r='2.4' fill='%233987e5'/><circle cx='16.6' cy='19.9' r='2.4' fill='%233987e5'/><circle cx='21' cy='13.4' r='2.4' fill='%233987e5'/><circle cx='25.6' cy='10' r='2.4' fill='%233987e5'/></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f1f0ec" media="(prefers-color-scheme: light)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Plot.It">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -46,13 +52,24 @@
         <button role="menuitem" data-cmd="swap" data-need="split" data-i18n="mv_swap">Swap sides</button>
       </div>
     </div>
+    <div class="menu">
+      <button class="menu-btn" aria-haspopup="menu" aria-expanded="false" data-i18n="m_examples">Examples</button>
+      <div class="menu-list" role="menu" hidden>
+        <button role="menuitem" data-ex="pendulum" data-i18n="ex_pendulum">Simple pendulum</button>
+        <button role="menuitem" data-ex="freefall" data-i18n="ex_freefall">Free fall</button>
+        <button role="menuitem" data-ex="rc" data-i18n="ex_rc">RC discharge</button>
+        <button role="menuitem" data-ex="damped" data-i18n="ex_damped">Damped oscillation</button>
+        <button role="menuitem" data-ex="spectrum" data-i18n="ex_spectrum">Spectral line</button>
+      </div>
+    </div>
   </nav>
   <div class="actions">
     <label class="btn primary" data-i18n-title="import_t"><span data-i18n="import">Import data</span><input id="fileData" type="file" multiple hidden></label>
-    <label class="btn"><span data-i18n="open_project">Open project</span><input id="fileProject" type="file" accept=".json,application/json" hidden></label>
+    <label class="btn"><span data-i18n="open_project">Open project</span><input id="fileProject" type="file" accept=".json,application/json,.sciprj,.gz" hidden></label>
     <button class="btn" id="btnSaveProject" data-i18n="save_project" data-i18n-title="save_project_t">Save project</button>
     <button class="btn icon" id="btnUndo" data-i18n-title="undo_t" disabled>↶</button>
     <button class="btn icon" id="btnRedo" data-i18n-title="redo_t" disabled>↷</button>
+    <button class="btn" id="btnInstall" data-i18n="install" data-i18n-title="install_t" hidden>Install</button>
     <button class="btn icon" id="btnHelp" data-i18n-title="help_t">?</button>
     <div class="seg lang" role="group" data-i18n-aria="lang_t" data-i18n-title="lang_t">
       <button class="seg-btn lang-btn" data-lang="es">ES</button>
@@ -92,7 +109,14 @@
           <div class="empty" id="emptyHint" hidden>
             <p class="big" data-i18n="empty_big">Type or paste your data</p>
             <p data-i18n-html="empty_html"></p>
-            <button class="btn small" id="btnExample" data-i18n="example">Load an example</button>
+            <p class="muted" data-i18n="examples_lead">Or open a solved lab example:</p>
+            <div class="btnrow ex-btns">
+              <button class="btn small" data-ex="pendulum" data-i18n="ex_pendulum">Simple pendulum</button>
+              <button class="btn small" data-ex="freefall" data-i18n="ex_freefall">Free fall</button>
+              <button class="btn small" data-ex="rc" data-i18n="ex_rc">RC discharge</button>
+              <button class="btn small" data-ex="damped" data-i18n="ex_damped">Damped oscillation</button>
+              <button class="btn small" data-ex="spectrum" data-i18n="ex_spectrum">Spectral line</button>
+            </div>
           </div>
         </div>
         <div class="pane" id="graphPane" hidden>
@@ -149,9 +173,13 @@
           <label><span data-i18n="rows_to">to</span><input type="number" id="fRow1" min="1" step="1"></label>
           <button class="btn primary small" id="btnApplyFormula" data-i18n="apply">Apply</button>
         </div>
+        <div class="prop-row">
+          <label class="chk prop" data-i18n-title="propagate_t"><input type="checkbox" id="fPropagate" checked> <span data-i18n="propagate">Propagate errors</span></label>
+          <button type="button" class="info-btn" data-info="infoFormula" data-info-title="info_formula_t" aria-haspopup="dialog">+info</button>
+        </div>
+        <div class="info-src" id="infoFormula" hidden data-i18n-html="hint_formula_html"></div>
         <p class="err" id="formulaErr" hidden></p>
         <div class="chips" id="colChips"></div>
-        <p class="hint" data-i18n-html="hint_formula_html"></p>
       </div>
       <div class="sub">
         <div class="subhead" data-i18n="ops_head">Operations</div>
@@ -166,7 +194,7 @@
     </details>
 
     <details class="panel for-table" data-p="plotnew">
-      <summary data-i18n="p_plotnew">Plot</summary>
+      <summary><span data-i18n="p_plotnew">Plot</span><button type="button" class="info-btn" data-info="infoPlot" aria-haspopup="dialog">+info</button></summary>
       <div class="seg wide" role="group" id="plotStyle">
         <button class="seg-btn active" data-style="scatter" data-i18n="st_scatter">Scatter</button>
         <button class="seg-btn" data-style="line" data-i18n="st_line">Line</button>
@@ -177,13 +205,13 @@
         <select id="plotDest" data-i18n-aria="plot_dest"></select>
         <button class="btn primary small" id="btnPlot" data-i18n="plot_btn">Plot</button>
       </div>
-      <p class="hint" data-i18n-html="hint_plot_html"></p>
+      <div class="info-src" id="infoPlot" hidden data-i18n-html="hint_plot_html"></div>
     </details>
 
     <details class="panel for-table" data-p="stats">
-      <summary data-i18n="p_stats">Statistics</summary>
+      <summary><span data-i18n="p_stats">Statistics</span><button type="button" class="info-btn" data-info="infoStats" aria-haspopup="dialog">+info</button></summary>
       <div class="tablewrap small"><table class="stats" id="statsOut"></table></div>
-      <p class="hint" data-i18n="hint_stats"></p>
+      <div class="info-src" id="infoStats" hidden data-i18n-html="hint_stats_html"></div>
     </details>
 
     <details class="panel for-table" data-p="table">
@@ -224,7 +252,7 @@
     </details>
 
     <details class="panel for-graph" data-p="fit">
-      <summary data-i18n="p_fit">Fit</summary>
+      <summary><span data-i18n="p_fit">Fit</span><button type="button" class="info-btn" data-info="infoFit" aria-haspopup="dialog">+info</button></summary>
       <div class="grid2">
         <label><span data-i18n="fit_curve">Data</span><select id="fitCurve"></select></label>
         <label><span data-i18n="fit_model">Model</span>
@@ -262,11 +290,11 @@
         <button class="btn small" id="btnFitTable" data-i18n="fit_table" data-i18n-title="fit_table_t">Residuals → table</button>
         <button class="btn small danger" id="btnFitDel" data-i18n="fit_del" data-i18n-title="fit_del_t">Delete fit</button>
       </div>
-      <p class="hint" data-i18n-html="hint_fit_html"></p>
+      <div class="info-src" id="infoFit" hidden data-i18n-html="hint_fit_html"></div>
     </details>
 
     <details class="panel for-graph" data-p="axes">
-      <summary data-i18n="p_axes">Axes and layout</summary>
+      <summary><span data-i18n="p_axes">Axes and layout</span><button type="button" class="info-btn" data-info="infoAxes" aria-haspopup="dialog">+info</button></summary>
       <div class="grid2">
         <label class="wide"><span data-i18n="g_title">Title</span><input type="text" id="gTitle"></label>
         <label class="wide"><span data-i18n="g_xlab">X axis label</span><input type="text" id="gXlab"></label>
@@ -296,7 +324,7 @@
         </label>
       </div>
       <div class="btnrow"><button class="btn small" id="btnGraphFmt" data-i18n="more_fmt">More options…</button></div>
-      <p class="hint" data-i18n-html="hint_axes_html"></p>
+      <div class="info-src" id="infoAxes" hidden data-i18n-html="hint_axes_html"></div>
     </details>
 
     <details class="panel" data-p="log">
@@ -317,6 +345,12 @@
   <h2 data-i18n="help_title">How to use it</h2>
   <div data-i18n-html="help_html"></div>
   <form method="dialog"><button class="btn primary" data-i18n="help_ok">Got it</button></form>
+</dialog>
+
+<dialog id="infoDlg" class="ask info" aria-labelledby="infoTitle">
+  <h2 id="infoTitle"></h2>
+  <div class="info-body" id="infoBody"></div>
+  <div class="ask-actions"><button class="btn primary" id="infoOk" data-i18n="help_ok">Got it</button></div>
 </dialog>
 
 <dialog id="ask" class="ask" aria-labelledby="askTitle">
@@ -372,9 +406,11 @@
 <script src="analysis.js"></script>
 <script src="core.js"></script>
 <script src="table.js"></script>
+<script src="sciprj.js"></script>
 <script src="graph.js"></script>
 <script src="menu.js"></script>
 <script src="split.js"></script>
+<script src="examples.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

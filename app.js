@@ -61,7 +61,7 @@ $('fileData').addEventListener('change', (e) => {
 $('fileProject').addEventListener('change', (e) => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) openProject(f);
+  if (f) { if (/\.json$/i.test(f.name)) openProject(f); else importFiles([f]); }
 });
 $('btnSaveProject').addEventListener('click', saveProject);
 $('btnUndo').addEventListener('click', () => hist.go(-1));
@@ -127,6 +127,32 @@ $('btnLogClear').addEventListener('click', () => {
 
 // Los textos fijos los cambia i18n.js; aquí se rehace lo que se genera en el código.
 document.querySelectorAll('.lang-btn').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+// "+info": enseña en un diálogo la ayuda escondida que indica data-info (también en los diálogos que
+// se generan). El título es data-info-title o, si no, el del panel o diálogo donde está el botón.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.info-btn');
+  const src = b && document.getElementById(b.dataset.info);
+  if (!src) return;
+  e.preventDefault(); // en el título de un panel, que no lo abra ni lo cierre
+  const sum = b.closest('summary'), panel = b.closest('details'), dlg = b.closest('dialog');
+  let title = '';
+  if (b.dataset.infoTitle) title = t(b.dataset.infoTitle);
+  else if (panel) { const s = panel.querySelector(':scope > summary'); title = (s.querySelector('[data-i18n]') || s).textContent; }
+  else if (dlg) title = dlg.querySelector('h2').textContent;
+  $('infoTitle').textContent = title;
+  $('infoBody').innerHTML = src.innerHTML;
+  $('infoBody').scrollTop = 0;
+  $('infoDlg').showModal();
+  if (sum) $('infoOk').focus();
+});
+$('infoOk').addEventListener('click', () => $('infoDlg').close());
+// Un clic fuera del recuadro también lo cierra.
+$('infoDlg').addEventListener('click', (e) => {
+  if (e.target !== $('infoDlg')) return;
+  const r = $('infoDlg').getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) $('infoDlg').close();
+});
+
 document.addEventListener('langchange', () => {
   funcCache.clear();
   renderAll();
@@ -209,8 +235,35 @@ renderAll();
 setActivePanel(document.querySelector('.panel:not([hidden])'));
 restoreAutosave();
 
+/* ---------- app instalable y sin conexión ---------- */
+
+// El service worker solo existe servido por http(s); abierto como archivo local, la app funciona igual.
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+// Botón «Instalar» cuando el navegador lo ofrece (Chrome, Edge, Android). En iPhone/iPad: Compartir → Añadir a pantalla de inicio.
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; $('btnInstall').hidden = false; });
+window.addEventListener('appinstalled', () => { installEvt = null; $('btnInstall').hidden = true; });
+$('btnInstall').addEventListener('click', async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice;
+  installEvt = null;
+  $('btnInstall').hidden = true;
+});
+// Instalada, abrir un archivo con Plot.It desde el sistema lo importa.
+if ('launchQueue' in window) {
+  window.launchQueue.setConsumer(async (p) => {
+    if (!p.files || !p.files.length) return;
+    const files = await Promise.all(p.files.map((h) => h.getFile()));
+    const proj = files.find((f) => /\.json$/i.test(f.name));
+    if (proj) openProject(proj); else importFiles(files);
+  });
+}
+
 // Para pruebas automáticas.
 window.plotit = {
-  get P() { return P; }, UI, hist, renderAll, parseDataText, tableFromParsed, pasteText, applyFormula, loadExample,
+  get P() { return P; }, UI, hist, renderAll, parseDataText, tableFromParsed, pasteText, applyFormula, fillFormula, loadExample, importSciprj, importFiles,
   drawGraph, SvgCtx, runFit, fitState, lmFit, FIT_MODELS, compileExpr, activate, addGraph, addTable, makeDataCurve,
 };

@@ -703,7 +703,7 @@ function gfRender() {
   $('gfBody').innerHTML =
     `<div class="fmt-pane" data-pane="axes"><table class="axtab"><thead><tr><th></th><th>${esc(t('fmt_xaxis'))}</th><th>${esc(t('fmt_yaxis'))}</th></tr></thead><tbody>${rows}</tbody></table></div>` +
     `<div class="fmt-pane grid2" data-pane="frame">${fieldsHtml(O.frame, get)}</div>` +
-    `<div class="fmt-pane grid2" data-pane="text">${fieldsHtml(O.text, get)}<p class="hint wide">${t('fmt_text_hint')}</p></div>` +
+    `<div class="fmt-pane grid2" data-pane="text">${fieldsHtml(O.text, get)}<p class="wide"><button type="button" class="info-btn" data-info="infoFmtText" data-info-title="fmt_tab_text" aria-haspopup="dialog">+info</button></p><div class="info-src" id="infoFmtText" hidden>${t('fmt_text_hint')}</div></div>` +
     `<div class="fmt-pane grid2" data-pane="page">${fieldsHtml(O.page, get)}</div>`;
   gfShowTab(gfTab);
 }

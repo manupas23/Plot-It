@@ -28,11 +28,29 @@ const I18N = {
     export_svg: 'SVG',
     empty_big: 'Escribe o pega tus datos',
     empty_html: 'Haz clic en una celda y escribe, pega desde Excel (<kbd>Ctrl</kbd>+<kbd>V</kbd>) o arrastra aquí un archivo de datos.',
-    example: 'Cargar un ejemplo',
-    example_name: 'Ejemplo',
-    example_toast: 'Ejemplo cargado: en el panel Ajuste, pulsa Ajustar.',
+    examples_lead: 'O abre un ejemplo de prácticas ya resuelto:',
+    m_examples: 'Ejemplos',
+    ex_pendulum: 'Péndulo simple',
+    ex_freefall: 'Caída libre',
+    ex_rc: 'Descarga RC',
+    ex_damped: 'Oscilación amortiguada',
+    ex_spectrum: 'Línea espectral',
+    ex_counts: 'cuentas',
+    ex_toast: 'Ejemplo «{name}» cargado y ajustado. Los pasos están en el Registro de resultados.',
+    ex_log_pendulum: 'Ejemplo «Péndulo simple». Para 9 longitudes L (±2 mm) se ha cronometrado el tiempo de 10 oscilaciones, t10 (±0,2 s por el tiempo de reacción). Con fórmulas se ha calculado T = t10/10 y después T2 = T^2; con «Propagar errores» marcado, Plot.It crea solas las columnas T_err y T2_err (σ_f² = Σ (∂f/∂x · σ_x)²). Como T² = (4π²/g)·L, la gráfica de T² frente a L es una recta que pasa por el origen: con la pendiente a del ajuste lineal, g = 4π²/a, y su error, σ_g = g·σ_a/a.',
+    ex_log_freefall: 'Ejemplo «Caída libre». Posición y (±5 mm) de una bola que cae desde el reposo, medida cada 0,03 s (por ejemplo, con Track.It a partir de un vídeo). Como y = y0 + v0·t + ½·g·t², se ajusta un polinomio de grado 2 y g = 2·a2. Los coeficientes a0 y a1 deberían salir compatibles con cero (y0 = 0, v0 = 0).',
+    ex_log_rc: 'Ejemplo «Descarga RC». Tensión V de un condensador que se descarga a través de una resistencia (R = 10 kΩ, C = 100 µF). El error del voltímetro (1 % de la lectura + 5 mV) está en err_V como fórmula, y lnV = ln(V) lleva su error propagado (σ = σ_V/V). Hay dos gráficas: V frente a t con un ajuste exponencial, donde el parámetro t es la constante de tiempo τ = RC, y ln V frente a t, una recta de pendiente −1/τ (la linealización). Las dos deberían dar τ ≈ 1 s.',
+    ex_log_damped: 'Ejemplo «Oscilación amortiguada». Posición x (±0,2 cm) de un oscilador con rozamiento. El modelo y0 + A·exp(−x/tau)·sin(2πx/T + phi) tiene cinco parámetros; Plot.It estima los valores iniciales a partir de los datos, así que el ajuste converge sin tocar nada. tau es el tiempo de amortiguamiento y T, el periodo.',
+    ex_log_spectrum: 'Ejemplo «Línea espectral». Cuentas N de un espectrómetro alrededor de la línea Hα del hidrógeno (656,28 nm). Un recuento tiene error de Poisson, √N: está en err_N como fórmula. El ajuste gaussiano da el centro xc (la longitud de onda de la línea) y la anchura w; la anchura a media altura es FWHM = 2·√(2 ln 2)·w ≈ 2,355·w.',
     drop_big: 'Suelta los archivos aquí',
-    drop_text: 'Los archivos de datos (CSV, TXT, DAT, log de LAMMPS…) se abren como tablas; un .plotit.json se abre como proyecto.',
+    drop_text: 'Los archivos de datos (CSV, TXT, DAT, log de LAMMPS…) se abren como tablas; un .plotit.json se abre como proyecto, y un .sciprj de SciDAVis, con sus tablas y gráficas.',
+    sci_ok: ({ name, t: nt, g }) => `${name}: ${nt === 1 ? 'una tabla' : nt + ' tablas'} y ${g === 1 ? 'una gráfica' : g + ' gráficas'} de SciDAVis.`,
+    sci_skipped: ({ n }) => (n === 1 ? 'Se ha saltado una ventana (matriz, nota o 3D).' : `Se han saltado ${n} ventanas (matrices, notas o 3D).`),
+    sci_bad: 'No se ha podido leer {name} como proyecto de SciDAVis.',
+    sci_old: '{name} es de una versión de SciDAVis anterior a la 0.2. Ábrelo y guárdalo con una versión reciente.',
+    sci_log: 'Registro del proyecto de SciDAVis {name}:',
+    install: 'Instalar',
+    install_t: 'Instalar Plot.It como aplicación: se abre en su propia ventana y funciona sin conexión',
     select_all: 'Seleccionar todo',
     row_number: 'nº de fila',
     none: '(ninguna)',
@@ -62,8 +80,13 @@ const I18N = {
     formula_ph: 'p. ej.  sqrt(B)/2   o   A^2 + cell("B", i-1)',
     rows_from: 'Filas',
     rows_to: 'a',
-    hint_formula_html: '<code>i</code> es el número de fila; las columnas se usan por su nombre o con <code>col("nombre")</code>, y <code>cell("A", i-1)</code> lee otra fila. <kbd>Enter</kbd> aplica.',
+    hint_formula_html: '<p>Escribe una expresión y pulsa <kbd>Enter</kbd> o <b>Aplicar</b>: se calcula fila a fila, en las filas que indiques.</p><ul><li><code>i</code> es el número de fila.</li><li>Las columnas se usan por su nombre (<code>T</code>) o con <code>col("nombre")</code> si el nombre tiene espacios o símbolos.</li><li><code>cell("A", i-1)</code> lee la columna A en otra fila, por ejemplo para restar la fila anterior.</li></ul><h3>Propagar errores</h3><p>Si las columnas que usa la fórmula tienen columna de error, la incertidumbre del resultado se calcula sola y va a su columna de error, que se crea si no existe:</p><p class="eq">σ<sub>f</sub>² = Σ (∂f/∂x · σ<sub>x</sub>)²</p><p>Las derivadas son numéricas (diferencias centradas) y los errores se suponen independientes. Por ejemplo, <code>T^2</code> con T = 1,42 ± 0,02 s da 2,02 ± 0,06 s².</p>',
     formula_bad: ({ n }) => (n === 1 ? 'Una fila no da un número y se ha dejado vacía.' : `${n} filas no dan un número y se han dejado vacías.`),
+    propagate: 'Propagar errores',
+    info_formula_t: 'Fórmulas',
+    propagate_t: 'Calcula también la incertidumbre del resultado con las columnas de error de las columnas que usa la fórmula, y la guarda en la columna de error de esta (si no hay, se crea)',
+    prop_done: 'Errores propagados en {col}.',
+    prop_none: 'Ninguna columna de la fórmula tiene una columna de error a su derecha: no hay errores que propagar.',
     ops_head: 'Operaciones',
     sort_asc: 'Ordenar ↑',
     sort_desc: 'Ordenar ↓',
@@ -86,11 +109,11 @@ const I18N = {
     plot_new_graph: 'en una gráfica nueva',
     plot_add_to: 'añadir a {name}',
     plot_need_y: 'Selecciona al menos una columna Y (clic en su cabecera).',
-    hint_plot_html: 'Selecciona columnas Y (clic en la cabecera, <kbd>Ctrl</kbd>+clic para varias). Cada una se dibuja frente a la X que tenga a su izquierda, con las columnas de error que tenga a la derecha.',
+    hint_plot_html: '<ol><li>Selecciona las columnas Y: clic en la cabecera, <kbd>Ctrl</kbd>+clic para añadir más.</li><li>Elige el estilo y si van a una gráfica nueva o a una que ya existe.</li><li>Pulsa <b>Representar</b>.</li></ol><p>Cada Y se dibuja frente a la columna X que tenga a su izquierda, con las columnas de error que tenga a su derecha como barras de error. El papel de cada columna (X, Y, error) se cambia con clic derecho en su cabecera.</p>',
 
     // Estadística
     p_stats: 'Estadística',
-    hint_stats: 'De la selección, o de la columna entera si solo hay una celda seleccionada.',
+    hint_stats_html: '<p>Se calculan sobre la selección o, si solo hay una celda seleccionada, sobre la columna entera. Las celdas vacías o con texto no cuentan.</p><ul><li><b>N</b>: número de valores.</li><li><b>Media</b>: x̄ = Σx / N.</li><li><b>Desv. típica</b>: s = √(Σ(x − x̄)² / (N − 1)), lo que se separa cada medida de la media.</li><li><b>Error de la media</b>: s / √N, la incertidumbre de x̄.</li><li><b>Mediana</b>: el valor central de los datos ordenados; los valores extremos le afectan poco.</li></ul>',
     stats_none: 'No hay números en la selección',
     st_n: 'N',
     st_mean: 'Media',
@@ -195,7 +218,7 @@ const I18N = {
     fit_run: 'Ajustar',
     fit_table: 'Residuos → tabla',
     fit_table_t: 'Tabla nueva con x, y, el valor del ajuste y el residuo de cada punto',
-    hint_fit_html: '<kbd>Mayús</kbd>+arrastrar sobre la gráfica elige el intervalo de x. En el modelo personalizado, todo nombre distinto de <code>x</code> es un parámetro. Sin pesos, los errores se escalan con √(χ²/ν).',
+    hint_fit_html: '<ul><li><b>Intervalo</b>: <kbd>Mayús</kbd>+arrastrar sobre la gráfica elige el intervalo de x que se ajusta; también se puede escribir en <b>Desde x</b> y <b>Hasta x</b>.</li><li><b>Modelo personalizado</b>: todo nombre distinto de <code>x</code> es un parámetro. Dale un valor inicial razonable o pulsa <b>Estimar</b>.</li><li><b>Pesos</b>: si los datos tienen error en Y, cada punto pesa 1/σ². Sin pesos, los errores de los parámetros se escalan con √(χ²/ν).</li><li><b>Resultados</b>: cada ajuste se guarda con su curva y, si hay varios, se elige en la lista cuál ver. Un clic en un valor lo copia con todas sus cifras.</li><li><b>Calidad</b>: un buen ajuste tiene R² cerca de 1 y, con pesos, χ²/ν cerca de 1. Si R² &lt; 0,9, sale en rojo.</li></ul>',
     fit_no_data: 'La gráfica no tiene datos',
     fit_no_params: 'La expresión no tiene parámetros que ajustar.',
     fit_no_points: 'No hay puntos que ajustar en ese intervalo.',
@@ -248,7 +271,7 @@ const I18N = {
     g_h: 'Alto (px)',
     g_font: 'Tamaño de letra',
     g_pngscale: 'Escala del PNG',
-    hint_axes_html: 'En los textos: <code>x_{0}</code> subíndice, <code>m^{2}</code> o <code>s^-1</code> superíndice, <code>\\alpha</code>, <code>\\AA</code> (Å), <code>\\deg</code> (°)… La hoja blanca es exactamente lo que se exporta.',
+    hint_axes_html: '<p>Los textos (título, ejes, leyenda) admiten:</p><table class="keys"><tr><td><code>x_{0}</code></td><td>subíndice</td></tr><tr><td><code>m^{2}</code>, <code>s^-1</code></td><td>superíndice</td></tr><tr><td><code>\\alpha</code>, <code>\\Omega</code>…</td><td>letras griegas</td></tr><tr><td><code>\\AA</code>, <code>\\deg</code></td><td>Å y °</td></tr></table><p>La hoja blanca es exactamente lo que se exporta. En <b>Más opciones…</b> hay más formato: marco, rejilla, letra LaTeX…</p>',
 
     // Registro
     p_log: 'Registro de resultados',
@@ -463,7 +486,7 @@ const I18N = {
     fmt_tickscale: 'Tamaño de los números (×)',
     fmt_legendscale: 'Tamaño de la leyenda (×)',
     fmt_legendframe: 'Leyenda con marco',
-    fmt_text_hint: 'Los tamaños (×) son relativos al tamaño de letra. En los textos: <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…',
+    fmt_text_hint: '<ul><li>Los tamaños (×) son relativos al tamaño de letra de la gráfica.</li><li>En los textos: <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li><li>La letra <b>LaTeX (Computer Modern)</b> es la de los artículos hechos con LaTeX y va dentro de los SVG exportados.</li></ul>',
     fmt_bg: 'Fondo',
     fmt_bgnone: 'Fondo transparente (PNG y SVG)',
     fmt_same: 'el de la curva',
@@ -508,6 +531,11 @@ const I18N = {
     <li>Operadores <code>+ − * / ^ %</code>, comparaciones (<code>&lt; &gt; == …</code>, valen 1 o 0) y <code>condición ? a : b</code>.</li>
     <li>Funciones: <code>sin cos tan asin acos atan atan2 sinh cosh tanh exp ln log</code> (base 10) <code>log2 sqrt cbrt abs sign floor ceil round min max hypot pow mod erf erfc gamma rand if</code>. Constantes <code>pi</code> y <code>e</code>.</li>
     <li><code>i</code> es el número de fila; las columnas se usan por su nombre (<code>B*2</code>) o con <code>col("nombre con espacios")</code>; <code>cell("A", i-1)</code> lee el valor de otra fila.</li>
+    <li><b>Propagar errores</b> (marcado por defecto): si las columnas que usa la fórmula tienen columna de error, el error del resultado se calcula fila a fila con σ<sub>f</sub>² = Σ (∂f/∂x · σ<sub>x</sub>)² (derivadas numéricas, errores independientes) y va a la columna de error del resultado, que se crea si no existe. Por ejemplo, <code>T^2</code> con T = 1,42 ± 0,02 s da 2,02 ± 0,06 s².</li>
+    </ul>
+    <h3>Ejemplos</h3>
+    <ul>
+    <li>El menú <b>Ejemplos</b> abre prácticas resueltas (péndulo simple, caída libre, descarga RC, oscilación amortiguada y una línea espectral): datos con su error, columnas calculadas con fórmulas, la gráfica y el ajuste ya hecho. El registro explica cada paso y cómo se saca el resultado físico.</li>
     </ul>
     <h3>Gráficas</h3>
     <ul>
@@ -540,6 +568,8 @@ const I18N = {
     <h3>Archivos</h3>
     <ul>
     <li><b>Importar datos</b> lee CSV, TXT, DAT y logs de LAMMPS: detecta el separador, la coma decimal y la cabecera, y une los bloques con la misma cabecera (varios <code>run</code>).</li>
+    <li>Los proyectos de <b>SciDAVis</b> (<code>.sciprj</code> y <code>.sciprj.gz</code>) se abren con <b>Abrir proyecto</b>, <b>Importar datos</b> o arrastrándolos: entran las tablas (con el papel de cada columna, el comentario como unidad y la fórmula) y las gráficas (curvas, barras de error, ajustes, histogramas, leyendas, títulos y escalas). Las matrices, las notas y las gráficas 3D no.</li>
+    <li><b>Instalar</b> (Chrome, Edge, Android) deja Plot.It como una aplicación más, con su ventana y su icono, y funciona sin conexión. En iPhone o iPad: botón Compartir → <i>Añadir a pantalla de inicio</i>.</li>
     <li><b>Guardar proyecto</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) guarda tablas, gráficas y registro en un <code>.plotit.json</code>. Además, el trabajo se guarda solo en el navegador.</li>
     <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> deshacen y rehacen; <kbd>?</kbd> abre esta ayuda.</li>
     </ul>`,
@@ -568,11 +598,29 @@ const I18N = {
     export_svg: 'SVG',
     empty_big: 'Type or paste your data',
     empty_html: 'Click a cell and type, paste from Excel (<kbd>Ctrl</kbd>+<kbd>V</kbd>) or drop a data file here.',
-    example: 'Load an example',
-    example_name: 'Example',
-    example_toast: 'Example loaded: press Fit in the Fit panel.',
+    examples_lead: 'Or open a solved lab example:',
+    m_examples: 'Examples',
+    ex_pendulum: 'Simple pendulum',
+    ex_freefall: 'Free fall',
+    ex_rc: 'RC discharge',
+    ex_damped: 'Damped oscillation',
+    ex_spectrum: 'Spectral line',
+    ex_counts: 'counts',
+    ex_toast: 'Example “{name}” loaded and fitted. The steps are in the Results log.',
+    ex_log_pendulum: 'Example “Simple pendulum”. For 9 lengths L (±2 mm), the time of 10 oscillations was measured, t10 (±0.2 s from reaction time). Formulas give T = t10/10 and then T2 = T^2; with “Propagate errors” ticked, Plot.It creates the columns T_err and T2_err by itself (σ_f² = Σ (∂f/∂x · σ_x)²). Since T² = (4π²/g)·L, the plot of T² against L is a straight line through the origin: with the slope a of the linear fit, g = 4π²/a, and its error is σ_g = g·σ_a/a.',
+    ex_log_freefall: 'Example “Free fall”. Position y (±5 mm) of a ball falling from rest, measured every 0.03 s (for example with Track.It from a video). Since y = y0 + v0·t + ½·g·t², a degree-2 polynomial is fitted and g = 2·a2. The coefficients a0 and a1 should come out compatible with zero (y0 = 0, v0 = 0).',
+    ex_log_rc: 'Example “RC discharge”. Voltage V of a capacitor discharging through a resistor (R = 10 kΩ, C = 100 µF). The voltmeter error (1 % of the reading + 5 mV) is in err_V as a formula, and lnV = ln(V) carries its propagated error (σ = σ_V/V). There are two graphs: V against t with an exponential fit, where the parameter t is the time constant τ = RC, and ln V against t, a straight line with slope −1/τ (the linearisation). Both should give τ ≈ 1 s.',
+    ex_log_damped: 'Example “Damped oscillation”. Position x (±0.2 cm) of an oscillator with friction. The model y0 + A·exp(−x/tau)·sin(2πx/T + phi) has five parameters; Plot.It estimates the starting values from the data, so the fit converges without touching anything. tau is the damping time and T the period.',
+    ex_log_spectrum: 'Example “Spectral line”. Counts N from a spectrometer around the hydrogen Hα line (656.28 nm). A count has a Poisson error, √N: it is in err_N as a formula. The Gaussian fit gives the centre xc (the wavelength of the line) and the width w; the full width at half maximum is FWHM = 2·√(2 ln 2)·w ≈ 2.355·w.',
     drop_big: 'Drop files here',
-    drop_text: 'Data files (CSV, TXT, DAT, LAMMPS log…) become tables; a .plotit.json file opens as a project.',
+    drop_text: 'Data files (CSV, TXT, DAT, LAMMPS log…) become tables; a .plotit.json file opens as a project, and a SciDAVis .sciprj with its tables and graphs.',
+    sci_ok: ({ name, t: nt, g }) => `${name}: ${nt === 1 ? 'one table' : nt + ' tables'} and ${g === 1 ? 'one graph' : g + ' graphs'} from SciDAVis.`,
+    sci_skipped: ({ n }) => (n === 1 ? 'One window was skipped (matrix, note or 3D).' : `${n} windows were skipped (matrices, notes or 3D).`),
+    sci_bad: 'Could not read {name} as a SciDAVis project.',
+    sci_old: '{name} comes from a SciDAVis version older than 0.2. Open it and save it with a recent version.',
+    sci_log: 'Log of the SciDAVis project {name}:',
+    install: 'Install',
+    install_t: 'Install Plot.It as an app: it opens in its own window and works offline',
     select_all: 'Select all',
     row_number: 'row number',
     none: '(none)',
@@ -601,8 +649,13 @@ const I18N = {
     formula_ph: 'e.g.  sqrt(B)/2   or   A^2 + cell("B", i-1)',
     rows_from: 'Rows',
     rows_to: 'to',
-    hint_formula_html: '<code>i</code> is the row number; use columns by name or with <code>col("name")</code>, and <code>cell("A", i-1)</code> reads another row. <kbd>Enter</kbd> applies.',
+    hint_formula_html: '<p>Type an expression and press <kbd>Enter</kbd> or <b>Apply</b>: it is computed row by row, in the rows you choose.</p><ul><li><code>i</code> is the row number.</li><li>Columns are used by name (<code>T</code>) or with <code>col("name")</code> when the name has spaces or symbols.</li><li><code>cell("A", i-1)</code> reads column A in another row, for example to subtract the previous row.</li></ul><h3>Propagate errors</h3><p>If the columns used in the formula have an error column, the uncertainty of the result is computed by itself and goes to its error column, which is created if missing:</p><p class="eq">σ<sub>f</sub>² = Σ (∂f/∂x · σ<sub>x</sub>)²</p><p>Derivatives are numerical (central differences) and errors are assumed independent. For example, <code>T^2</code> with T = 1.42 ± 0.02 s gives 2.02 ± 0.06 s².</p>',
     formula_bad: ({ n }) => (n === 1 ? 'One row did not give a number and was left empty.' : `${n} rows did not give a number and were left empty.`),
+    propagate: 'Propagate errors',
+    info_formula_t: 'Formulas',
+    propagate_t: 'Also compute the uncertainty of the result from the error columns of the columns used in the formula, and store it in this column\'s error column (created if there is none)',
+    prop_done: 'Errors propagated into {col}.',
+    prop_none: 'No column in the formula has an error column to its right: there are no errors to propagate.',
     ops_head: 'Operations',
     sort_asc: 'Sort ↑',
     sort_desc: 'Sort ↓',
@@ -624,10 +677,10 @@ const I18N = {
     plot_new_graph: 'in a new graph',
     plot_add_to: 'add to {name}',
     plot_need_y: 'Select at least one Y column (click its header).',
-    hint_plot_html: 'Select Y columns (click the header, <kbd>Ctrl</kbd>+click for several). Each is plotted against the X column on its left, with the error columns on its right.',
+    hint_plot_html: '<ol><li>Select the Y columns: click the header, <kbd>Ctrl</kbd>+click to add more.</li><li>Choose the style and whether they go to a new graph or to an existing one.</li><li>Press <b>Plot</b>.</li></ol><p>Each Y is plotted against the X column on its left, with the error columns on its right as error bars. The role of each column (X, Y, error) is changed by right-clicking its header.</p>',
 
     p_stats: 'Statistics',
-    hint_stats: 'Of the selection, or of the whole column when a single cell is selected.',
+    hint_stats_html: '<p>They are computed over the selection or, when a single cell is selected, over the whole column. Empty or text cells do not count.</p><ul><li><b>N</b>: number of values.</li><li><b>Mean</b>: x̄ = Σx / N.</li><li><b>Std. dev.</b>: s = √(Σ(x − x̄)² / (N − 1)), how far each measurement lies from the mean.</li><li><b>Std. error</b>: s / √N, the uncertainty of x̄.</li><li><b>Median</b>: the middle value of the sorted data; extreme values barely affect it.</li></ul>',
     stats_none: 'No numbers in the selection',
     st_n: 'N',
     st_mean: 'Mean',
@@ -729,7 +782,7 @@ const I18N = {
     fit_run: 'Fit',
     fit_table: 'Residuals → table',
     fit_table_t: 'New table with x, y, the fitted value and the residual of each point',
-    hint_fit_html: '<kbd>Shift</kbd>+drag on the graph sets the x range. In a custom model, every name other than <code>x</code> is a parameter. Without weights, errors are scaled by √(χ²/ν).',
+    hint_fit_html: '<ul><li><b>Range</b>: <kbd>Shift</kbd>+drag on the graph sets the x range to fit; it can also be typed in <b>From x</b> and <b>To x</b>.</li><li><b>Custom model</b>: every name other than <code>x</code> is a parameter. Give it a sensible starting value or press <b>Guess</b>.</li><li><b>Weights</b>: if the data have Y errors, each point weighs 1/σ². Without weights, the parameter errors are scaled by √(χ²/ν).</li><li><b>Results</b>: each fit is kept with its curve and, when there are several, the list picks which one to show. Clicking a value copies it with all its digits.</li><li><b>Quality</b>: a good fit has R² close to 1 and, with weights, χ²/ν close to 1. When R² &lt; 0.9, it is shown in red.</li></ul>',
     fit_no_data: 'The graph has no data',
     fit_no_params: 'The expression has no parameters to fit.',
     fit_no_points: 'There are no points to fit in that range.',
@@ -781,7 +834,7 @@ const I18N = {
     g_h: 'Height (px)',
     g_font: 'Font size',
     g_pngscale: 'PNG scale',
-    hint_axes_html: 'In texts: <code>x_{0}</code> subscript, <code>m^{2}</code> or <code>s^-1</code> superscript, <code>\\alpha</code>, <code>\\AA</code> (Å), <code>\\deg</code> (°)… The white page is exactly what gets exported.',
+    hint_axes_html: '<p>Texts (title, axes, legend) accept:</p><table class="keys"><tr><td><code>x_{0}</code></td><td>subscript</td></tr><tr><td><code>m^{2}</code>, <code>s^-1</code></td><td>superscript</td></tr><tr><td><code>\\alpha</code>, <code>\\Omega</code>…</td><td>Greek letters</td></tr><tr><td><code>\\AA</code>, <code>\\deg</code></td><td>Å and °</td></tr></table><p>The white page is exactly what gets exported. <b>More options…</b> has more formatting: frame, grid, LaTeX font…</p>',
 
     p_log: 'Results log',
     log_empty: 'Fits, integrals and normalizations show up here.',
@@ -993,7 +1046,7 @@ const I18N = {
     fmt_tickscale: 'Number size (×)',
     fmt_legendscale: 'Legend size (×)',
     fmt_legendframe: 'Legend with frame',
-    fmt_text_hint: 'Sizes (×) are relative to the font size. In texts: <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…',
+    fmt_text_hint: '<ul><li>Sizes (×) are relative to the font size of the graph.</li><li>In texts: <code>x_{0}</code>, <code>m^{2}</code>, <code>\\alpha</code>, <code>\\AA</code>…</li><li>The <b>LaTeX (Computer Modern)</b> font is the one of papers written in LaTeX and is embedded in exported SVG files.</li></ul>',
     fmt_bg: 'Background',
     fmt_bgnone: 'Transparent background (PNG and SVG)',
     fmt_same: 'curve colour',
@@ -1037,6 +1090,11 @@ const I18N = {
     <li>Operators <code>+ − * / ^ %</code>, comparisons (<code>&lt; &gt; == …</code>, giving 1 or 0) and <code>condition ? a : b</code>.</li>
     <li>Functions: <code>sin cos tan asin acos atan atan2 sinh cosh tanh exp ln log</code> (base 10) <code>log2 sqrt cbrt abs sign floor ceil round min max hypot pow mod erf erfc gamma rand if</code>. Constants <code>pi</code> and <code>e</code>.</li>
     <li><code>i</code> is the row number; use columns by name (<code>B*2</code>) or with <code>col("name with spaces")</code>; <code>cell("A", i-1)</code> reads the value in another row.</li>
+    <li><b>Propagate errors</b> (ticked by default): if the columns used in the formula have an error column, the error of the result is computed row by row with σ<sub>f</sub>² = Σ (∂f/∂x · σ<sub>x</sub>)² (numerical derivatives, independent errors) and goes to the result's error column, which is created if missing. For example, <code>T^2</code> with T = 1.42 ± 0.02 s gives 2.02 ± 0.06 s².</li>
+    </ul>
+    <h3>Examples</h3>
+    <ul>
+    <li>The <b>Examples</b> menu opens solved lab exercises (simple pendulum, free fall, RC discharge, damped oscillation and a spectral line): data with errors, columns computed with formulas, the graph and the fit already done. The log explains each step and how to get the physical result.</li>
     </ul>
     <h3>Graphs</h3>
     <ul>
@@ -1069,6 +1127,8 @@ const I18N = {
     <h3>Files</h3>
     <ul>
     <li><b>Import data</b> reads CSV, TXT, DAT and LAMMPS logs: it detects the delimiter, decimal commas and the header, and joins blocks with the same header (several <code>run</code>s).</li>
+    <li><b>SciDAVis</b> projects (<code>.sciprj</code> and <code>.sciprj.gz</code>) open with <b>Open project</b>, <b>Import data</b> or by dropping them: tables come in (with each column's role, the comment as unit, and the formula) and so do graphs (curves, error bars, fits, histograms, legends, titles and scales). Matrices, notes and 3D plots do not.</li>
+    <li><b>Install</b> (Chrome, Edge, Android) turns Plot.It into a regular app, with its own window and icon, and it works offline. On iPhone or iPad: Share button → <i>Add to Home Screen</i>.</li>
     <li><b>Save project</b> (<kbd>Ctrl</kbd>+<kbd>S</kbd>) stores tables, graphs and log in a <code>.plotit.json</code> file. Your work is also kept automatically in the browser.</li>
     <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> undo and redo; <kbd>?</kbd> opens this help.</li>
     </ul>`,

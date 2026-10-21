@@ -221,6 +221,7 @@ body.col-moving, body.col-moving * { cursor: grabbing !important; user-select: n
 .empty .big { font-size: 18px; color: var(--text-primary); margin: 0 0 6px; }
 .empty p { margin: 0 0 10px; }
 .empty .btn { pointer-events: auto; }
+.empty .ex-btns { justify-content: center; margin-top: 0; }
 
 .drop {
   position: absolute; inset: 12px; display: grid; place-items: center; text-align: center; z-index: 20;
@@ -269,6 +270,25 @@ input.bad { outline: 2px solid var(--danger); outline-offset: -1px; }
 .formula-row { display: flex; gap: 8px; align-items: end; margin-top: 6px; }
 .formula-row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); width: 84px; }
 .formula-row .btn { margin-left: auto; }
+.chk.prop { font-size: 12.5px; }
+.prop-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+/* "+info": la ayuda de cada panel queda escondida y se abre en un diálogo. */
+.info-btn { background: none; border: 0; padding: 0; margin-top: 6px; font: inherit; font-size: 12px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.prop-row .info-btn { margin-top: 0; }
+.panel > summary .info-btn { margin: 0 0 0 auto; font-weight: 400; }
+.info-btn:hover { color: var(--text-primary); }
+dialog.info { width: min(500px, calc(100vw - 32px)); max-width: none; }
+dialog.info .info-body { max-height: min(62vh, 520px); overflow-y: auto; font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); }
+dialog.info .info-body p { margin: 0 0 8px; }
+dialog.info .info-body ul, dialog.info .info-body ol { margin: 0 0 8px; padding-left: 20px; }
+dialog.info .info-body li { margin-bottom: 5px; }
+dialog.info .info-body li::marker { color: var(--text-muted); }
+dialog.info .info-body b { color: var(--text-primary); font-weight: 600; }
+dialog.info .info-body h3 { font-size: 13.5px; margin: 14px 0 6px; color: var(--text-primary); }
+dialog.info .info-body code { padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--text-primary); }
+dialog.info .info-body .eq { margin: 6px 0 10px; padding: 7px 10px; border-radius: 6px; background: var(--surface-2); color: var(--text-primary); font-size: 15px; text-align: center; }
+dialog.info .info-body .keys { margin: 2px 0 10px; border-collapse: collapse; }
+dialog.info .info-body .keys td { padding: 3px 12px 3px 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .chip {
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); border-radius: 5px;
@@ -482,6 +502,18 @@ dialog.fmt::backdrop { background: rgba(0,0,0,.12); }
 .ocolor input[type=color]:disabled { opacity: .35; }
 .ocolor .chk { font-size: 12px; margin: 0; }
 input[type=color] { width: 44px; height: 28px; padding: 1px 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
+
+/* Móvil: la barra superior en dos filas finas (marca y menús; botones), que se desplazan de lado
+   si no caben, en vez de ocupar media pantalla. */
+@media (max-width: 600px) {
+  .topbar { padding: 6px 10px; gap: 4px 6px; min-height: 0; }
+  .menubar { margin-left: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .menu-btn { padding: 6px 8px; }
+  .menu-list { position: fixed; top: 44px; left: 8px; right: 8px; min-width: 0; max-height: 70vh; overflow-y: auto; }
+  .actions { flex-wrap: nowrap; overflow-x: auto; width: 100%; margin-left: 0; scrollbar-width: none; }
+  .actions > * { flex: none; }
+  .actions .btn { padding: 5px 10px; }
+}
 
 /* Sin movimiento si el sistema lo pide (al final, para que gane a las transiciones de arriba). */
 @media (prefers-reduced-motion: reduce) {

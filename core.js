@@ -364,6 +364,22 @@ async function importFiles(files) {
   let last = null, n = 0, added = 0;
   for (const f of files) {
     if (/\.json$/i.test(f.name)) { openProject(f); continue; }
+    if (/\.sciprj(\.gz)?$/i.test(f.name)) {
+      // La tabla vacía de un proyecto nuevo se quita antes, para que las importadas conserven su nombre.
+      const lone = P.wins.length === 1 && P.wins[0].type === 'table' && !tableHasData(P.wins[0]) ? P.wins.splice(0, 1)[0] : null;
+      const r = await importSciprj(f);
+      const wins = r.error ? [] : [...r.tables, ...r.graphs];
+      if (lone && !wins.length) P.wins.unshift(lone);
+      if (r.error) { toast(t(r.error, { name: f.name }), 6000); continue; }
+      if (!wins.length) { toast(t('import_none', { name: f.name }), 5000); continue; }
+      last = r.graphs[0] || r.tables[r.tables.length - 1];
+      added += wins.length;
+      if (!P.name) P.name = f.name.replace(/\.sciprj(\.gz)?$/i, '');
+      if (r.log) logResult(`${t('sci_log', { name: f.name })}\n${r.log}`);
+      n++;
+      toast(t('sci_ok', { name: f.name, t: r.tables.length, g: r.graphs.length }) + (r.skipped ? ' ' + t('sci_skipped', { n: r.skipped }) : ''), 7000);
+      continue;
+    }
     let parsed = null;
     try { parsed = parseDataText(await f.text()); } catch (e) { parsed = null; }
     if (!parsed || !parsed.rows.length) { toast(t('import_none', { name: f.name }), 5000); continue; }

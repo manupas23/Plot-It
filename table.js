@@ -583,12 +583,15 @@ function afterDataChange() {
   syncStats();
 }
 
-function formulaResolver(tb) {
+// `used` (opcional) recoge las columnas que la fórmula usa en su misma fila: son las que
+// llevan error a la propagación. Las celdas sueltas (cell("A", 3)) no cuentan.
+function formulaResolver(tb, used) {
   const idx = (n) => tb.cols.findIndex((c) => c.name === n);
-  const ref = (k, row) => `C[${k}][${row}]`;
+  const row = (n) => { const k = idx(n); if (k >= 0 && used) used.add(k); return k; };
+  const ref = (k, r) => `C[${k}][${r}]`;
   return {
-    name: (n) => (n === 'i' ? 'v[0]' : idx(n) >= 0 ? ref(idx(n), 'v[0]-1') : null),
-    col: (n) => (idx(n) >= 0 ? ref(idx(n), 'v[0]-1') : null),
+    name: (n) => (n === 'i' ? 'v[0]' : row(n) >= 0 ? ref(idx(n), 'v[0]-1') : null),
+    col: (n) => (row(n) >= 0 ? ref(idx(n), 'v[0]-1') : null),
     cell: (n, rowJs) => (idx(n) >= 0 ? ref(idx(n), `Math.round(${rowJs})-1`) : null),
   };
 }
@@ -596,6 +599,80 @@ function formulaResolver(tb) {
 function exprErrText(e) {
   if (!e.code) return String(e.message || e);
   return t('expr_' + e.code, { arg: e.arg ?? '', pos: (e.pos ?? 0) + 1 });
+}
+
+// Columna de error de una columna cualquiera: la de su papel (X → error X, Y → error Y) y, si no
+// tiene papel, la primera de las dos que haya.
+function errOfCol(tb, c) {
+  if (c.role === 'X') return errFor(tb, c, 'xErr');
+  if (c.role === 'Y') return errFor(tb, c, 'yErr');
+  if (c.role === 'none') return errFor(tb, c, 'yErr') || errFor(tb, c, 'xErr');
+  return null;
+}
+
+// Calcula `src` en las filas r0..r1 de `col`. Con `propagate`, también su incertidumbre:
+// σ_f² = Σ (∂f/∂x_k · σ_k)², con las derivadas por diferencias centradas y σ_k sacada de la
+// columna de error de cada columna que usa la fórmula. El resultado va a la columna de error
+// de `col`, que se crea si no existe. Lanza los errores de compilación de la fórmula.
+function fillFormula(tb, col, src, r0, r1, propagate) {
+  const used = new Set();
+  const f = compileExpr(src, formulaResolver(tb, used));
+  const nums = tb.cols.map((c) => Float64Array.from(c.data, (v) => (typeof v === 'number' ? v : NaN)));
+  // Solo se avisa de las filas sin resultado que están dentro de los datos, no de las vacías del final.
+  let lastData = -1;
+  for (const c of tb.cols) for (let r = c.data.length - 1; r > lastData; r--) if (c.data[r] != null) { lastData = r; break; }
+  const terms = [];
+  if (propagate) {
+    for (const k of used) {
+      const ec = errOfCol(tb, tb.cols[k]);
+      if (ec && ec !== col) terms.push({ k, e: tb.cols.indexOf(ec) });
+    }
+  }
+  const v = [0];
+  const val = (r) => { v[0] = r + 1; try { return f(v, nums); } catch (e) { return NaN; } };
+  const out = [], sig = [];
+  let bad = 0;
+  for (let r = r0; r <= r1; r++) {
+    const y = val(r);
+    const ok = typeof y === 'number' && isFinite(y);
+    out.push(ok ? y : null);
+    if (!ok && r <= lastData) bad++;
+    if (!terms.length) continue;
+    let s2 = 0, any = false;
+    if (ok) {
+      for (const { k, e } of terms) {
+        const x = nums[k][r], s = Math.abs(nums[e][r]);
+        if (!isFinite(x) || !isFinite(s)) continue;
+        any = true;
+        if (!s) continue;
+        const h = s * 1e-3;
+        nums[k][r] = x + h; const yp = val(r);
+        nums[k][r] = x - h; const ym = val(r);
+        nums[k][r] = x;
+        const d = (yp - ym) / (2 * h);
+        if (isFinite(d)) s2 += (d * s) ** 2; else { any = false; break; }
+      }
+    }
+    sig.push(any ? Math.sqrt(s2) : null);
+  }
+  for (let r = r0; r <= r1; r++) col.data[r] = out[r - r0];
+  col.formula = src;
+  let ecol = null;
+  if (terms.length) {
+    const role = col.role === 'X' ? 'xErr' : 'yErr';
+    ecol = errFor(tb, col, role);
+    if (!ecol) {
+      ecol = makeCol(uniqueColName(tb, col.name + '_err'), role, tb.rows);
+      // La selección se queda donde estaba (insertColAfter la pasa a la columna nueva).
+      const s = selOf(tb), keep = { ...s }, a = tb.cols[s.c0], b = tb.cols[s.c1];
+      insertColAfter(tb, col, ecol);
+      Object.assign(s, keep, { c0: Math.max(0, tb.cols.indexOf(a)), c1: Math.max(0, tb.cols.indexOf(b)) });
+    }
+    ecol.unit = col.unit;
+    ecol.formula = `σ(${src})`;
+    for (let r = r0; r <= r1; r++) ecol.data[r] = sig[r - r0];
+  }
+  return { bad, ecol, used: used.size, terms: terms.length };
 }
 
 function applyFormula() {
@@ -609,25 +686,14 @@ function applyFormula() {
   if (r1 < r0) [r0, r1] = [r1, r0];
   r0 = clamp(r0, 0, tb.rows - 1);
   if (r1 >= tb.rows) setRows(tb, r1 + 1);
-  let f;
-  try { f = compileExpr(src, formulaResolver(tb)); } catch (e) { errEl.textContent = exprErrText(e); errEl.hidden = false; return; }
-  const nums = tb.cols.map((c) => Float64Array.from(c.data, (v) => (typeof v === 'number' ? v : NaN)));
-  // Solo se avisa de las filas sin resultado que están dentro de los datos, no de las vacías del final.
-  let lastData = -1;
-  for (const c of tb.cols) for (let r = c.data.length - 1; r > lastData; r--) if (c.data[r] != null) { lastData = r; break; }
-  const v = [0];
-  let bad = 0;
-  for (let r = r0; r <= r1; r++) {
-    v[0] = r + 1;
-    let y;
-    try { y = f(v, nums); } catch (e) { y = NaN; }
-    if (typeof y === 'number' && isFinite(y)) col.data[r] = y;
-    else { col.data[r] = null; if (r <= lastData) bad++; }
-  }
-  col.formula = src;
+  const propagate = $('fPropagate').checked;
+  let res;
+  try { res = fillFormula(tb, col, src, r0, r1, propagate); } catch (e) { errEl.textContent = exprErrText(e); errEl.hidden = false; return; }
   hist.commit();
   afterDataChange();
-  if (bad) toast(t('formula_bad', { n: bad }), 4500);
+  if (res.bad) toast(t('formula_bad', { n: res.bad }), 4500);
+  else if (res.ecol) toast(t('prop_done', { col: res.ecol.name }), 4500);
+  else if (propagate && res.used) toast(t('prop_none'), 5500);
 }
 
 function sortTable(tb, col, dir) {
@@ -694,7 +760,7 @@ function syncColumnPanel() {
   if (document.activeElement !== $('colUnit')) $('colUnit').value = c.unit || '';
   const lastId = $('colFormula').dataset.col;
   if (lastId !== String(c.id)) {
-    $('colFormula').value = c.formula && !/^d\(|^∫/.test(c.formula) ? c.formula : '';
+    $('colFormula').value = c.formula && !/^d\(|^∫|^σ\(/.test(c.formula) ? c.formula : '';
     $('colFormula').dataset.col = c.id;
     $('formulaErr').hidden = true;
   }
@@ -930,32 +996,3 @@ async function deleteCols(tb) {
   afterDataChange();
 }
 $('btnCsv').addEventListener('click', () => { const tb = activeTable(); if (tb) { commitEdit(false); exportCsv(tb); } });
-
-// Tabla de ejemplo: oscilación amortiguada con ruido y su error, ya en una gráfica.
-function loadExample() {
-  const n = 60;
-  const tcol = makeCol('t', 'X'), xcol = makeCol('x', 'Y'), ecol = makeCol('err', 'yErr');
-  tcol.unit = 's'; xcol.unit = 'cm'; ecol.unit = 'cm';
-  let seed = 7;
-  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
-  for (let i = 0; i < n; i++) {
-    const tt = i * 0.1;
-    tcol.data.push(+tt.toFixed(2));
-    xcol.data.push(+(0.4 + 5 * Math.exp(-tt / 2.5) * Math.sin((2 * Math.PI * tt) / 1.6 + 0.3) + 0.35 * rnd()).toFixed(3));
-    ecol.data.push(0.2);
-  }
-  const tb = addTable({ name: t('example_name'), cols: [tcol, xcol, ecol], rows: n, numbered: false });
-  dropUnusedFirstTable(tb);
-  const g = addGraph();
-  const c = makeDataCurve(g, tb, xcol, 'scatter');
-  g.curves.push(c);
-  g.xlab = 't (s)';
-  g.ylab = 'x (cm)';
-  UI.curve.set(g.id, c.id);
-  UI.fit.set(g.id, { curve: c.id, model: 'damped' });
-  P.active = g.id;
-  hist.commit();
-  renderAll();
-  toast(t('example_toast'), 6000);
-}
-$('btnExample').addEventListener('click', loadExample);

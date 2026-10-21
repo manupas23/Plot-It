@@ -6,13 +6,15 @@ Nothing to install and no server: your data stay in your browser and are never u
 
 ## Usage
 
-Open `index.html` in Chrome, Edge or Firefox.
+Open `index.html` in Chrome, Edge or Firefox. Or, when it is served over `https` (for example from GitHub Pages), install it: Chrome and Edge show an *Install* button in the top bar, on Android it is in the browser menu, and on iPhone/iPad it is *Share → Add to Home Screen*. Installed, it opens in its own window, works offline, and data files can be opened with it from the file manager. On a phone or tablet the side panels go below the table or graph.
+
+To see the whole workflow at once, open one of the solved lab exercises in the *Examples* menu (also offered in the empty table): simple pendulum, free fall, RC discharge, damped oscillation and a spectral line. Each one has data with their errors, columns computed with formulas (with propagated errors), a graph and the fit already done, and the *Results log* explains every step and how to get the physical result ($g$, $\tau = RC$, the line centre and width…).
 
 1. **Get data into a table.**
    - Click a cell and type (`Enter` / `Tab` move on, `F2` or a double-click edits a cell). Decimal commas are accepted.
    - Paste from Excel, LibreOffice or SciDAVis with `Ctrl+V`. If you paste at row 1 and the first line holds titles, they become the column names.
    - Right-click a column header or a row number to insert or delete columns and rows, and drag a header to move its column.
-   - Or **Import data** (or drop files onto the page): CSV, TXT, DAT and LAMMPS logs, see [Import](#import).
+   - Or **Import data** (or drop files onto the page): CSV, TXT, DAT and LAMMPS logs, see [Import](#import). SciDAVis projects (`.sciprj`, `.sciprj.gz`) open with their tables and graphs.
 2. **Set the column roles.** Each column is X, Y, X error, Y error or none (*Column* panel). A Y column is plotted against the nearest X column on its left, and takes the error columns that follow it. Columns named `err`, `sd`, `sigma`, `x_err`… or `dE` right after `E` are marked as Y errors on import.
 3. **Compute new columns** with a formula (*Set values from a formula*), sort, normalize, differentiate or integrate (*Operations*). The *Statistics* panel summarises the selection.
 4. **Plot.** Select one or more Y columns (click their headers, `Ctrl`+click for several) and press *Plot*, into a new graph or an existing one. In the graph, the *Curves* panel changes colours, symbols, lines and error columns, and adds more data or functions $f(x)$.
@@ -36,6 +38,16 @@ Tabs are reordered by dragging them. The screen can be split into two windows, e
 | Row | `i` (1, 2, 3…) |
 
 For example, `A^2 + cell("B", i-1)` or, in a column next to `T` and `E`, `E/T`. Rows where the formula does not give a number are left empty. In fit models and functions the variable is `x`.
+
+**Error propagation.** With *Propagate errors* ticked (the default), the uncertainty of the result is computed too. For each column $x_k$ that the formula uses in the same row and that has an error column $\sigma_k$ (the X error column of an X column, the Y error column of a Y column), and assuming independent errors,
+
+```math
+\sigma_f^2 = \sum_k \left(\frac{\partial f}{\partial x_k}\,\sigma_k\right)^2,
+\qquad
+\frac{\partial f}{\partial x_k} \approx \frac{f(x_k + h) - f(x_k - h)}{2h},\quad h = 10^{-3}\,\sigma_k
+```
+
+row by row. The result goes to the error column of the computed column (Y error, or X error if it is an X column), which is created right after it, named `<name>_err`, if it does not exist yet; its formula reads `σ(<formula>)`. For instance, `T^2` with $T = 1.42 \pm 0.02$ s gives $2.02 \pm 0.06$ s². Values read with `cell()` from other rows are taken as exact.
 
 ### Rich text in titles and legends
 
@@ -180,6 +192,8 @@ computed with the FFT and zero padding (no circular wrap-around). The lag is $k\
 ### Import
 
 Each line is split with every candidate delimiter (tab, `;`, `,` and runs of spaces), and the one that gives the most lines with the same number of numeric fields wins. Decimal commas are accepted unless `,` is the delimiter; `nan` and `inf` become empty cells, and lines starting with `#`, `%`, `//` or `!` are comments. The data are the longest block of consecutive numeric lines, and its header is the non-numeric line just above it with the same number of fields (a commented header such as `# x y err` counts). Other blocks with the same header are appended, so a LAMMPS log with several `run` commands gives one table with all the thermo output, and the text in between (warnings, loop times) is skipped.
+
+**SciDAVis projects** (`.sciprj`, or compressed `.sciprj.gz`, from SciDAVis 0.2 onwards) can be opened with *Open project*, *Import data* or by dropping them. Each table keeps its name, its columns with their plot role (X, Y, X error, Y error; Z and none become *none*), the column comment as the unit (first line), the column formula and width, and its values (invalid cells become empty, text columns stay text). Each graph layer becomes a graph with its title, axis titles (simple `<sub>`/`<sup>` turned into `_{}`/`^{}`), axis ranges and log scales, and its curves: data curves with their X and Y columns, style (scatter, line, line + symbols, bars), colour, symbol and error bars, $y = f(x)$ function curves (fitted curves keep their parameter values), legend labels, and histograms (rebuilt with the same binning as a counts table plotted with bars). The project log goes to the results log. Matrices, notes and 3D plots are skipped.
 
 ## Shortcuts
 
